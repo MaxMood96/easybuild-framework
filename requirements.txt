@@ -35,3 +35,4 @@ cryptography; python_version >= '3.5' and python_version < '3.11'
 
 # rich is only supported for Python 3.6+
 rich; python_version >= '3.6'
+urllib3>=2.2.2 # not directly required, pinned by Snyk to avoid a vulnerability
