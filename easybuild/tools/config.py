@@ -1,5 +1,5 @@
 # #
-# Copyright 2009-2023 Ghent University
+# Copyright 2009-2025 Ghent University
 #
 # This file is part of EasyBuild,
 # originally created by the HPC team of Ghent University (http://ugent.be/hpc/en),
@@ -84,12 +84,14 @@ CONT_IMAGE_FORMATS = [
     CONT_IMAGE_FORMAT_SQUASHFS,
 ]
 
+CONT_TYPE_APPTAINER = 'apptainer'
 CONT_TYPE_DOCKER = 'docker'
 CONT_TYPE_SINGULARITY = 'singularity'
-CONT_TYPES = [CONT_TYPE_DOCKER, CONT_TYPE_SINGULARITY]
+CONT_TYPES = [CONT_TYPE_APPTAINER, CONT_TYPE_DOCKER, CONT_TYPE_SINGULARITY]
 DEFAULT_CONT_TYPE = CONT_TYPE_SINGULARITY
 
 DEFAULT_BRANCH = 'develop'
+DEFAULT_DOWNLOAD_TIMEOUT = 10
 DEFAULT_ENV_FOR_SHEBANG = '/usr/bin/env'
 DEFAULT_ENVVAR_USERS_MODULES = 'HOME'
 DEFAULT_INDEX_MAX_AGE = 7 * 24 * 60 * 60  # 1 week (in seconds)
@@ -118,6 +120,8 @@ DEFAULT_PNS = 'EasyBuildPNS'
 DEFAULT_PR_TARGET_ACCOUNT = 'easybuilders'
 DEFAULT_PREFIX = os.path.join(os.path.expanduser('~'), ".local", "easybuild")
 DEFAULT_REPOSITORY = 'FileRepository'
+EASYBUILD_SOURCES_URL = 'https://sources.easybuild.io'
+DEFAULT_EXTRA_SOURCE_URLS = (EASYBUILD_SOURCES_URL,)
 # Filter these CUDA libraries by default from the RPATH sanity check.
 # These are the only four libraries for which the CUDA toolkit ships stubs. By design, one is supposed to build
 # against the stub versions, but use the libraries that come with the CUDA driver at runtime. That means they should
@@ -209,7 +213,6 @@ BUILD_OPTIONS_CMDLINE = {
         'cuda_cache_dir',
         'cuda_cache_maxsize',
         'cuda_compute_capabilities',
-        'download_timeout',
         'dump_test_report',
         'easyblock',
         'envvars_user_modules',
@@ -219,6 +222,7 @@ BUILD_OPTIONS_CMDLINE = {
         'filter_env_vars',
         'filter_rpath_sanity_libs',
         'force_download',
+        'from_commit',
         'git_working_dirs_path',
         'github_user',
         'github_org',
@@ -228,6 +232,7 @@ BUILD_OPTIONS_CMDLINE = {
         'http_header_fields_urlpat',
         'hooks',
         'ignore_dirs',
+        'include_easyblocks_from_commit',
         'insecure_download',
         'job_backend_config',
         'job_cores',
@@ -238,6 +243,7 @@ BUILD_OPTIONS_CMDLINE = {
         'job_polling_interval',
         'job_target_resource',
         'locks_dir',
+        'module_cache_suffix',
         'modules_footer',
         'modules_header',
         'mpi_cmd_template',
@@ -255,6 +261,7 @@ BUILD_OPTIONS_CMDLINE = {
         'rpath_override_dirs',
         'required_linked_shared_libs',
         'skip',
+        'software_commit',
         'stop',
         'subdir_user_modules',
         'sysroot',
@@ -274,6 +281,7 @@ BUILD_OPTIONS_CMDLINE = {
         'debug',
         'debug_lmod',
         'dump_autopep8',
+        'dump_env_script',
         'enforce_checksums',
         'experimental',
         'extended_dry_run',
@@ -300,10 +308,13 @@ BUILD_OPTIONS_CMDLINE = {
         'sequential',
         'set_default_module',
         'set_gid_bit',
+        'silence_hook_trigger',
         'skip_extensions',
+        'skip_sanity_check',
         'skip_test_cases',
         'skip_test_step',
         'sticky_bit',
+        'terse',
         'trace',
         'unit_testing_mode',
         'upload_test_report',
@@ -348,6 +359,9 @@ BUILD_OPTIONS_CMDLINE = {
     DEFAULT_BRANCH: [
         'pr_target_branch',
     ],
+    DEFAULT_DOWNLOAD_TIMEOUT: [
+        'download_timeout',
+    ],
     DEFAULT_ENV_FOR_SHEBANG: [
         'env_for_shebang',
     ],
@@ -381,6 +395,9 @@ BUILD_OPTIONS_CMDLINE = {
     'defaultopt': [
         'default_opt_level',
     ],
+    DEFAULT_EXTRA_SOURCE_URLS: [
+        'extra_source_urls',
+    ],
     DEFAULT_ALLOW_LOADED_MODULES: [
         'allow_loaded_modules',
     ],
@@ -397,7 +414,7 @@ BUILD_OPTIONS_OTHER = {
         'build_specs',
         'command_line',
         'external_modules_metadata',
-        'pr_paths',
+        'extra_ec_paths',
         'robot_path',
         'valid_module_classes',
         'valid_stops',
@@ -568,7 +585,7 @@ def init_build_options(build_options=None, cmdline_options=None):
             cmdline_options.accept_eula_for = cmdline_options.accept_eula
 
         cmdline_build_option_names = [k for ks in BUILD_OPTIONS_CMDLINE.values() for k in ks]
-        active_build_options.update(dict([(key, getattr(cmdline_options, key)) for key in cmdline_build_option_names]))
+        active_build_options.update({key: getattr(cmdline_options, key) for key in cmdline_build_option_names})
         # other options which can be derived but have no perfectly matching cmdline option
         active_build_options.update({
             'check_osdeps': not cmdline_options.ignore_osdeps,
@@ -591,7 +608,7 @@ def init_build_options(build_options=None, cmdline_options=None):
                 for opt in build_options_by_default[default]:
                     bo[opt] = []
             else:
-                bo.update(dict([(opt, default) for opt in build_options_by_default[default]]))
+                bo.update({opt: default for opt in build_options_by_default[default]})
     bo.update(active_build_options)
 
     # BuildOptions is a singleton, so any future calls to BuildOptions will yield the same instance

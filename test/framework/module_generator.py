@@ -1,5 +1,5 @@
 ##
-# Copyright 2012-2023 Ghent University
+# Copyright 2012-2025 Ghent University
 #
 # This file is part of EasyBuild,
 # originally created by the HPC team of Ghent University (http://ugent.be/hpc/en),
@@ -82,7 +82,7 @@ class ModuleGeneratorTest(EnhancedTestCase):
                 '',
                 'Description',
                 '===========',
-                "%s" % descr,
+                descr,
                 '',
                 '',
                 "More information",
@@ -107,7 +107,7 @@ class ModuleGeneratorTest(EnhancedTestCase):
                 '',
                 'Description',
                 '===========',
-                "%s" % descr,
+                descr,
                 '',
                 '',
                 "More information",
@@ -137,7 +137,7 @@ class ModuleGeneratorTest(EnhancedTestCase):
                 '',
                 'Description',
                 '===========',
-                "%s" % descr,
+                descr,
                 '',
                 '',
                 "More information",
@@ -161,7 +161,7 @@ class ModuleGeneratorTest(EnhancedTestCase):
                 '',
                 'Description',
                 '===========',
-                "%s" % descr,
+                descr,
                 '',
                 '',
                 "More information",
@@ -749,12 +749,22 @@ class ModuleGeneratorTest(EnhancedTestCase):
 
         patterns = [
             r'^if convertToCanonical\(LmodVersion\(\)\) >= convertToCanonical\("8\.2\.8"\) then\n' +
-            r'\s*extensions\("bar/0.0,barbar/0.0,ls,toy/0.0"\)\nend$',
+            r'\s*extensions\("bar/0.0,barbar/1.2,toy/0.0,ulimit"\)\nend$',
         ]
 
         for pattern in patterns:
             regex = re.compile(pattern, re.M)
             self.assertTrue(regex.search(desc), "Pattern '%s' found in: %s" % (regex.pattern, desc))
+
+        # check if the extensions is missing if there are no extensions
+        test_ec = os.path.join(test_dir, 'easyconfigs', 'test_ecs', 't', 'toy', 'toy-0.0-test.eb')
+
+        ec = EasyConfig(test_ec)
+        eb = EasyBlock(ec)
+        modgen = self.MODULE_GENERATOR_CLASS(eb)
+        desc = modgen.get_description()
+
+        self.assertFalse(re.search(r"\s*extensions\(", desc), "No extensions found in: %s" % desc)
 
     def test_prepend_paths(self):
         """Test generating prepend-paths statements."""
@@ -890,8 +900,7 @@ class ModuleGeneratorTest(EnhancedTestCase):
         if self.MODULE_GENERATOR_CLASS == ModuleGeneratorTcl:
             # can't have $LMOD_QUIET set when testing with Tcl syntax,
             # otherwise we won't get the output produced by the test module file...
-            if 'LMOD_QUIET' in os.environ:
-                del os.environ['LMOD_QUIET']
+            os.environ.pop('LMOD_QUIET', None)
 
             self.assertEqual('$::env(HOSTNAME)', self.modgen.getenv_cmd('HOSTNAME'))
             self.assertEqual('$::env(HOME)', self.modgen.getenv_cmd('HOME'))
@@ -1096,6 +1105,36 @@ class ModuleGeneratorTest(EnhancedTestCase):
                 '',
             ])
             self.assertEqual(lua_load_msg, self.modgen.msg_on_load('test $test \\$test\ntest $foo \\$bar'))
+
+    def test_unload_msg(self):
+        """Test including an unload message in the module file."""
+        if self.MODULE_GENERATOR_CLASS == ModuleGeneratorTcl:
+            expected = "\nif { [ module-info mode unload ] } {\nputs stderr \"test\"\n}\n"
+            self.assertEqual(expected, self.modgen.msg_on_unload('test'))
+
+            tcl_unload_msg = '\n'.join([
+                '',
+                "if { [ module-info mode unload ] } {",
+                "puts stderr \"test \\$test \\$test",
+                "test \\$foo \\$bar\"",
+                "}",
+                '',
+            ])
+            self.assertEqual(tcl_unload_msg, self.modgen.msg_on_unload('test $test \\$test\ntest $foo \\$bar'))
+
+        else:
+            expected = '\nif mode() == "unload" then\nio.stderr:write([==[test]==])\nend\n'
+            self.assertEqual(expected, self.modgen.msg_on_unload('test'))
+
+            lua_unload_msg = '\n'.join([
+                '',
+                'if mode() == "unload" then',
+                'io.stderr:write([==[test $test \\$test',
+                'test $foo \\$bar]==])',
+                'end',
+                '',
+            ])
+            self.assertEqual(lua_unload_msg, self.modgen.msg_on_unload('test $test \\$test\ntest $foo \\$bar'))
 
     def test_module_naming_scheme(self):
         """Test using default module naming scheme."""

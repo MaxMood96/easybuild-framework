@@ -1,5 +1,5 @@
 ##
-# Copyright 2021-2023 Ghent University
+# Copyright 2021-2025 Ghent University
 #
 # This file is part of EasyBuild,
 # originally created by the HPC team of Ghent University (http://ugent.be/hpc/en),
@@ -70,6 +70,7 @@ class FlexiBLAS(LinAlg):
     """
     BLAS_MODULE_NAME = ['FlexiBLAS']
     BLAS_LIB = ['flexiblas']
+    BLAS_LIB_MT = ['flexiblas']
     BLAS_INCLUDE_DIR = [os.path.join('include', 'flexiblas')]
     BLAS_FAMILY = TC_CONSTANT_FLEXIBLAS
 

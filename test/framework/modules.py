@@ -1,5 +1,5 @@
 ##
-# Copyright 2012-2023 Ghent University
+# Copyright 2012-2025 Ghent University
 #
 # This file is part of EasyBuild,
 # originally created by the HPC team of Ghent University (http://ugent.be/hpc/en),
@@ -51,10 +51,11 @@ from easybuild.tools.modules import EnvironmentModules, EnvironmentModulesC, Env
 from easybuild.tools.modules import curr_module_paths, get_software_libdir, get_software_root, get_software_version
 from easybuild.tools.modules import invalidate_module_caches_for, modules_tool, reset_module_caches
 from easybuild.tools.run import run_cmd
+from easybuild.tools.systemtools import get_shared_lib_ext
 
 
 # number of modules included for testing purposes
-TEST_MODULES_COUNT = 92
+TEST_MODULES_COUNT = 111
 
 
 class ModulesTest(EnhancedTestCase):
@@ -99,8 +100,7 @@ class ModulesTest(EnhancedTestCase):
         testdir = os.path.dirname(os.path.abspath(__file__))
 
         for key in ['EBROOTGCC', 'EBROOTOPENMPI', 'EBROOTOPENBLAS']:
-            if key in os.environ:
-                del os.environ[key]
+            os.environ.pop(key, None)
 
         # arguments can be passed in two ways: multiple arguments, or just 1 list argument
         self.modtool.run_module('load', 'GCC/6.4.0-2.28')
@@ -197,12 +197,12 @@ class ModulesTest(EnhancedTestCase):
 
         # test modules include 3 GCC modules and one GCCcore module
         ms = self.modtool.available('GCC')
-        expected = ['GCC/4.6.3', 'GCC/4.6.4', 'GCC/6.4.0-2.28', 'GCC/7.3.0-2.30']
+        expected = ['GCC/12.3.0', 'GCC/4.6.3', 'GCC/4.6.4', 'GCC/6.4.0-2.28', 'GCC/7.3.0-2.30']
         # Tcl-only modules tool does an exact match on module name, Lmod & Tcl/C do prefix matching
         # EnvironmentModules is a subclass of EnvironmentModulesTcl, but Modules 4+ behaves similarly to Tcl/C impl.,
         # so also append GCCcore/6.2.0 if we are an instance of EnvironmentModules
         if not isinstance(self.modtool, EnvironmentModulesTcl) or isinstance(self.modtool, EnvironmentModules):
-            expected.append('GCCcore/6.2.0')
+            expected.extend(['GCCcore/12.3.0', 'GCCcore/6.2.0'])
         self.assertEqual(ms, expected)
 
         # test modules include one GCC/4.6.3 module
@@ -216,6 +216,12 @@ class ModulesTest(EnhancedTestCase):
             # with recent versions of Lmod, also the hidden modules are included in the output of 'avail'
             self.assertEqual(len(ms), TEST_MODULES_COUNT + 3)
             self.assertIn('bzip2/.1.0.6', ms)
+            self.assertIn('toy/.0.0-deps', ms)
+            self.assertIn('OpenMPI/.2.1.2-GCC-6.4.0-2.28', ms)
+        elif (isinstance(self.modtool, EnvironmentModules)
+                and StrictVersion(self.modtool.version) >= StrictVersion('4.6.0')):
+            # bzip2/.1.0.6 is not there, since that's a module file in Lua syntax
+            self.assertEqual(len(ms), TEST_MODULES_COUNT + 2)
             self.assertIn('toy/.0.0-deps', ms)
             self.assertIn('OpenMPI/.2.1.2-GCC-6.4.0-2.28', ms)
         else:
@@ -437,9 +443,8 @@ class ModulesTest(EnhancedTestCase):
         # if GCC is loaded again, $EBROOTGCC should be set again, and GCC should be listed last
         self.modtool.load(['GCC/6.4.0-2.28'])
 
-        # environment modules v4.0 does not reload already loaded modules, will be changed in v4.2
-        modtool_ver = StrictVersion(self.modtool.version)
-        if not isinstance(self.modtool, EnvironmentModules) or modtool_ver >= StrictVersion('4.2'):
+        # environment modules v4+ does not reload already loaded modules
+        if not isinstance(self.modtool, EnvironmentModules):
             self.assertTrue(os.environ.get('EBROOTGCC'))
 
         if isinstance(self.modtool, Lmod):
@@ -447,8 +452,7 @@ class ModulesTest(EnhancedTestCase):
             self.assertEqual(self.modtool.loaded_modules()[-1], 'GCC/6.4.0-2.28')
 
         # set things up for checking that GCC does *not* get reloaded when requested
-        if 'EBROOTGCC' in os.environ:
-            del os.environ['EBROOTGCC']
+        os.environ.pop('EBROOTGCC', None)
         self.modtool.load(['OpenMPI/2.1.2-GCC-6.4.0-2.28'])
         if isinstance(self.modtool, Lmod):
             # order of loaded modules only changes with Lmod
@@ -671,10 +675,23 @@ class ModulesTest(EnhancedTestCase):
             os.environ.pop('EBROOT%s' % env_var_name)
             os.environ.pop('EBVERSION%s' % env_var_name)
 
-        # check expected result of get_software_libdir with multiple lib subdirs
+        # if only 'lib' has a library archive, use it
         root = os.path.join(tmpdir, name)
         mkdir(os.path.join(root, 'lib64'))
         os.environ['EBROOT%s' % env_var_name] = root
+        write_file(os.path.join(root, 'lib', 'libfoo.a'), 'foo')
+        self.assertEqual(get_software_libdir(name), 'lib')
+
+        remove_file(os.path.join(root, 'lib', 'libfoo.a'))
+
+        # also check vice versa with *shared* library in lib64
+        shlib_ext = get_shared_lib_ext()
+        write_file(os.path.join(root, 'lib64', 'libfoo.' + shlib_ext), 'foo')
+        self.assertEqual(get_software_libdir(name), 'lib64')
+
+        remove_file(os.path.join(root, 'lib64', 'libfoo.' + shlib_ext))
+
+        # check expected result of get_software_libdir with multiple lib subdirs
         self.assertErrorRegex(EasyBuildError, "Multiple library subdirectories found.*", get_software_libdir, name)
         self.assertEqual(get_software_libdir(name, only_one=False), ['lib', 'lib64'])
 
@@ -1025,8 +1042,7 @@ class ModulesTest(EnhancedTestCase):
         init_config()
 
         # make sure $LMOD_DEFAULT_MODULEPATH, since Lmod picks it up and tweaks $MODULEPATH to match it
-        if 'LMOD_DEFAULT_MODULEPATH' in os.environ:
-            del os.environ['LMOD_DEFAULT_MODULEPATH']
+        os.environ.pop('LMOD_DEFAULT_MODULEPATH', None)
 
         self.reset_modulepath([os.path.join(self.test_prefix, 'Core')])
 
@@ -1048,8 +1064,7 @@ class ModulesTest(EnhancedTestCase):
         self.modtool.load(['OpenMPI/2.1.2'])
         self.modtool.purge()
 
-        if 'LMOD_DEFAULT_MODULEPATH' in os.environ:
-            del os.environ['LMOD_DEFAULT_MODULEPATH']
+        os.environ.pop('LMOD_DEFAULT_MODULEPATH', None)
 
         # reset $MODULEPATH, obtain new ModulesTool instance,
         # which should not remember anything w.r.t. previous $MODULEPATH value
@@ -1273,24 +1288,33 @@ class ModulesTest(EnhancedTestCase):
         test_dir1_relative = os.path.join(test_dir1, '..', os.path.basename(test_dir1))
         test_dir2_dot = os.path.join(os.path.dirname(test_dir2), '.', os.path.basename(test_dir2))
         self.modtool.add_module_path(test_dir1_relative)
-        self.assertEqual(get_resolved_module_path(), test_dir1)
+        self.assertTrue(os.path.samefile(get_resolved_module_path(), test_dir1))
         # Adding the same path, but in a different form may be possible, but may also be ignored, e.g. in EnvModules
         self.modtool.add_module_path(test_dir1)
         if get_resolved_module_path() != test_dir1:
-            self.assertEqual(get_resolved_module_path(), os.pathsep.join([test_dir1, test_dir1]))
+            modpath = get_resolved_module_path().split(os.pathsep)
+            self.assertEqual(len(modpath), 2)
+            self.assertTrue(os.path.samefile(modpath[0], test_dir1))
+            self.assertTrue(os.path.samefile(modpath[1], test_dir1))
             self.modtool.remove_module_path(test_dir1)
-            self.assertEqual(get_resolved_module_path(), test_dir1)
+            self.assertTrue(os.path.samefile(get_resolved_module_path(), test_dir1))
+
         self.modtool.add_module_path(test_dir2_dot)
-        self.assertEqual(get_resolved_module_path(), test_dir_2_and_1)
+        modpath = get_resolved_module_path().split(os.pathsep)
+        self.assertEqual(len(modpath), 2)
+        self.assertTrue(os.path.samefile(modpath[0], test_dir2))
+        self.assertTrue(os.path.samefile(modpath[1], test_dir1))
+
         self.modtool.remove_module_path(test_dir2_dot)
-        self.assertEqual(get_resolved_module_path(), test_dir1)
+        self.assertTrue(os.path.samefile(get_resolved_module_path(), test_dir1))
+
         # Force adding such a dot path which can be removed with either variant
         os.environ['MODULEPATH'] = os.pathsep.join([test_dir2_dot, test_dir1_relative])
         self.modtool.remove_module_path(test_dir2_dot)
-        self.assertEqual(get_resolved_module_path(), test_dir1)
+        self.assertTrue(os.path.samefile(get_resolved_module_path(), test_dir1))
         os.environ['MODULEPATH'] = os.pathsep.join([test_dir2_dot, test_dir1_relative])
         self.modtool.remove_module_path(test_dir2)
-        self.assertEqual(get_resolved_module_path(), test_dir1)
+        self.assertTrue(os.path.samefile(get_resolved_module_path(), test_dir1))
 
         os.environ['MODULEPATH'] = old_module_path  # Restore
 

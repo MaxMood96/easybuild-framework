@@ -1,5 +1,5 @@
 ##
-# Copyright 2012-2023 Ghent University
+# Copyright 2012-2025 Ghent University
 #
 # This file is part of EasyBuild,
 # originally created by the HPC team of Ghent University (http://ugent.be/hpc/en),
@@ -181,8 +181,7 @@ class ToolchainTest(EnhancedTestCase):
         # clean environment
         self.unset_compiler_env_vars()
 
-        if 'PKG_CONFIG_PATH' in os.environ:
-            del os.environ['PKG_CONFIG_PATH']
+        os.environ.pop('PKG_CONFIG_PATH', None)
 
         self.assertEqual(os.getenv('PKG_CONFIG_PATH'), None)
 
@@ -227,8 +226,7 @@ class ToolchainTest(EnhancedTestCase):
         env_vars.extend(['OMPI_%s' % x for x in comp_env_vars])
 
         for key in env_vars:
-            if key in os.environ:
-                del os.environ[key]
+            os.environ.pop(key, None)
 
     def test_toolchain_compiler_env_vars(self):
         """Test whether environment variables for compilers are defined by toolchain mechanism."""
@@ -345,8 +343,7 @@ class ToolchainTest(EnhancedTestCase):
         init_config(build_options={'minimal_build_env': 'CC:gcc,CXX:g++,CFLAGS:-O2,CXXFLAGS:-O3 -g,FC:gfortan'})
 
         for key in ['CFLAGS', 'CXXFLAGS', 'FC']:
-            if key in os.environ:
-                del os.environ[key]
+            os.environ.pop(key, None)
 
         self.mock_stderr(True)
         self.mock_stdout(True)
@@ -1204,7 +1201,7 @@ class ToolchainTest(EnhancedTestCase):
         self.assertEqual(tc.get_variable('LIBFFT'), libfft)
         self.assertEqual(tc.get_variable('LIBFFT_MT'), libfft_mt)
 
-        fft_lib_dir = os.path.join(modules.get_software_root('imkl'), 'mkl/2021.4.0/lib/intel64')
+        fft_lib_dir = os.path.join(modules.get_software_root('imkl'), 'mkl/2021.4/lib/intel64')
         self.assertEqual(tc.get_variable('FFT_LIB_DIR'), fft_lib_dir)
 
         tc = self.get_toolchain('intel', version='2021b')
@@ -1324,8 +1321,11 @@ class ToolchainTest(EnhancedTestCase):
             ])
             write_file(imkl_fftw_module_path, imkl_fftw_mod_txt)
 
-            subdir = 'mkl/%s/lib/intel64' % imklver
+            # put "latest" symbolic link to short version, used in newer MKL
+            imklshortver = '.'.join(imklver.split('.')[:2])
+            subdir = 'mkl/%s/lib/intel64' % imklshortver
             os.makedirs(os.path.join(imkl_dir, subdir))
+            os.symlink(imklshortver, os.path.join(imkl_dir, 'mkl', 'latest'))
             for fftlib in mkl_libs:
                 write_file(os.path.join(imkl_dir, subdir, 'lib%s.a' % fftlib), 'foo')
             subdir = 'lib'
@@ -1498,6 +1498,37 @@ class ToolchainTest(EnhancedTestCase):
         self.assertEqual(os.getenv('F77'), 'ifx')
         self.assertEqual(os.getenv('F90'), 'ifx')
         self.assertEqual(os.getenv('FC'), 'ifx')
+
+        self.modtool.purge()
+        tc = self.get_toolchain('intel-compilers', version='2024.0.0')
+        tc.prepare()
+
+        # by default (for version >= 2024.0.0): oneAPI C/C++ compiler + oneAPI Fortran compiler
+        self.assertEqual(os.getenv('CC'), 'icx')
+        self.assertEqual(os.getenv('CXX'), 'icpx')
+        self.assertEqual(os.getenv('F77'), 'ifx')
+        self.assertEqual(os.getenv('F90'), 'ifx')
+        self.assertEqual(os.getenv('FC'), 'ifx')
+
+        self.modtool.purge()
+        tc = self.get_toolchain('intel-compilers', version='2024.0.0')
+        tc.set_options({'oneapi_fortran': False})
+        tc.prepare()
+        self.assertEqual(os.getenv('CC'), 'icx')
+        self.assertEqual(os.getenv('CXX'), 'icpx')
+        self.assertEqual(os.getenv('F77'), 'ifort')
+        self.assertEqual(os.getenv('F90'), 'ifort')
+        self.assertEqual(os.getenv('FC'), 'ifort')
+
+        self.modtool.purge()
+        tc = self.get_toolchain('intel-compilers', version='2024.0.0')
+        tc.set_options({'oneapi_c_cxx': False, 'oneapi_fortran': False})
+        tc.prepare()
+        self.assertEqual(os.getenv('CC'), 'icc')
+        self.assertEqual(os.getenv('CXX'), 'icpc')
+        self.assertEqual(os.getenv('F77'), 'ifort')
+        self.assertEqual(os.getenv('F90'), 'ifort')
+        self.assertEqual(os.getenv('FC'), 'ifort')
 
         self.modtool.purge()
         tc = self.get_toolchain('intel', version='2021b')
@@ -1880,6 +1911,58 @@ class ToolchainTest(EnhancedTestCase):
         self.assertEqual(os.environ['SCALAPACK_MT_STATIC_LIBS'], scalapack_mt_static_libs_fosscuda)
         self.modtool.purge()
 
+        tc = self.get_toolchain('foss', version='2023a')
+        tc.prepare()
+        self.assertEqual(os.environ['BLAS_SHARED_LIBS'], blas_shared_libs_fosscuda.replace('openblas', 'flexiblas'))
+        self.assertEqual(os.environ['BLAS_STATIC_LIBS'], blas_static_libs_fosscuda.replace('openblas', 'flexiblas'))
+        self.assertEqual(os.environ['BLAS_MT_SHARED_LIBS'],
+                         blas_mt_shared_libs_fosscuda.replace('openblas', 'flexiblas'))
+        self.assertEqual(os.environ['BLAS_MT_STATIC_LIBS'],
+                         blas_mt_static_libs_fosscuda.replace('openblas', 'flexiblas'))
+        self.assertEqual(os.environ['LIBBLAS'], libblas_fosscuda.replace('openblas', 'flexiblas'))
+        self.assertEqual(os.environ['LIBBLAS_MT'], libblas_mt_fosscuda.replace('openblas', 'flexiblas'))
+
+        self.assertEqual(os.environ['LAPACK_SHARED_LIBS'], lapack_shared_libs_fosscuda.replace('openblas', 'flexiblas'))
+        self.assertEqual(os.environ['LAPACK_STATIC_LIBS'], lapack_static_libs_fosscuda.replace('openblas', 'flexiblas'))
+        self.assertEqual(os.environ['LAPACK_MT_SHARED_LIBS'],
+                         lapack_mt_shared_libs_fosscuda.replace('openblas', 'flexiblas'))
+        self.assertEqual(os.environ['LAPACK_MT_STATIC_LIBS'],
+                         lapack_mt_static_libs_fosscuda.replace('openblas', 'flexiblas'))
+        self.assertEqual(os.environ['LIBLAPACK'], liblapack_fosscuda.replace('openblas', 'flexiblas'))
+        self.assertEqual(os.environ['LIBLAPACK_MT'], liblapack_mt_fosscuda.replace('openblas', 'flexiblas'))
+
+        self.assertEqual(os.environ['BLAS_LAPACK_SHARED_LIBS'],
+                         blas_shared_libs_fosscuda.replace('openblas', 'flexiblas'))
+        self.assertEqual(os.environ['BLAS_LAPACK_STATIC_LIBS'],
+                         blas_static_libs_fosscuda.replace('openblas', 'flexiblas'))
+        self.assertEqual(os.environ['BLAS_LAPACK_MT_SHARED_LIBS'],
+                         blas_mt_shared_libs_fosscuda.replace('openblas', 'flexiblas'))
+        self.assertEqual(os.environ['BLAS_LAPACK_MT_STATIC_LIBS'],
+                         blas_mt_static_libs_fosscuda.replace('openblas', 'flexiblas'))
+
+        self.assertEqual(os.environ['FFT_SHARED_LIBS'], fft_shared_libs_fosscuda)
+        self.assertEqual(os.environ['FFT_STATIC_LIBS'], fft_static_libs_fosscuda)
+        self.assertEqual(os.environ['FFT_SHARED_LIBS_MT'], fft_mt_shared_libs_fosscuda)
+        self.assertEqual(os.environ['FFT_STATIC_LIBS_MT'], fft_mt_static_libs_fosscuda)
+        self.assertEqual(os.environ['FFTW_SHARED_LIBS'], fft_shared_libs_fosscuda)
+        self.assertEqual(os.environ['FFTW_STATIC_LIBS'], fft_static_libs_fosscuda)
+        self.assertEqual(os.environ['FFTW_SHARED_LIBS_MT'], fft_mt_shared_libs_fosscuda)
+        self.assertEqual(os.environ['FFTW_STATIC_LIBS_MT'], fft_mt_static_libs_fosscuda)
+        self.assertEqual(os.environ['LIBFFT'], libfft_fosscuda)
+        self.assertEqual(os.environ['LIBFFT_MT'], libfft_mt_fosscuda)
+
+        self.assertEqual(os.environ['LIBSCALAPACK'], libscalack_fosscuda.replace('openblas', 'flexiblas'))
+        self.assertEqual(os.environ['LIBSCALAPACK_MT'], libscalack_mt_fosscuda.replace('openblas', 'flexiblas'))
+        self.assertEqual(os.environ['SCALAPACK_SHARED_LIBS'],
+                         scalapack_shared_libs_fosscuda.replace('openblas', 'flexiblas'))
+        self.assertEqual(os.environ['SCALAPACK_STATIC_LIBS'],
+                         scalapack_static_libs_fosscuda.replace('openblas', 'flexiblas'))
+        self.assertEqual(os.environ['SCALAPACK_MT_SHARED_LIBS'],
+                         scalapack_mt_shared_libs_fosscuda.replace('openblas', 'flexiblas'))
+        self.assertEqual(os.environ['SCALAPACK_MT_STATIC_LIBS'],
+                         scalapack_mt_static_libs_fosscuda.replace('openblas', 'flexiblas'))
+        self.modtool.purge()
+
         tc = self.get_toolchain('intel', version='2018a')
         tc.prepare()
         self.assertEqual(os.environ.get('BLAS_SHARED_LIBS', "(not set)"), blas_shared_libs_intel4)
@@ -2036,7 +2119,7 @@ class ToolchainTest(EnhancedTestCase):
             'CrayIntel': "-O2 -ftz -fp-speculation=safe -fp-model source -fopenmp -craype-verbose",
             'GCC': "-O2 -ftree-vectorize -test -fno-math-errno -fopenmp",
             'iccifort': "-O2 -test -ftz -fp-speculation=safe -fp-model source -fopenmp",
-            'intel-compilers': "-O2 -test -ftz -fp-speculation=safe -fp-model precise -fiopenmp",
+            'intel-compilers': "-O2 -test -ftz -fp-speculation=safe -fp-model precise -qopenmp",
         }
 
         toolchains = [
@@ -2154,7 +2237,8 @@ class ToolchainTest(EnhancedTestCase):
                 "#!/bin/bash",
                 "echo 'This is a %s wrapper'" % cache_tool,
                 "NAME=${0##*/}",
-                "comm=$(which -a $NAME | sed 1d)",
+                "comms=($(which -a $NAME))",
+                "comm=${comms[1]}",  # First entry is this wrapper, take 2nd
                 "$comm $@",
                 "exit 0"
             ]
@@ -2218,8 +2302,7 @@ class ToolchainTest(EnhancedTestCase):
         """Test rpath_args.py script"""
 
         # $LIBRARY_PATH affects result of rpath_args.py, so make sure it's not set
-        if 'LIBRARY_PATH' in os.environ:
-            del os.environ['LIBRARY_PATH']
+        os.environ.pop('LIBRARY_PATH', None)
 
         script = find_eb_script('rpath_args.py')
 
@@ -2949,6 +3032,21 @@ class ToolchainTest(EnhancedTestCase):
         res = env_vars_external_module('test', None, {})
         expected = {}
         self.assertEqual(res, expected)
+
+    def test_get_flag(self):
+        """Test get_flag function"""
+        tc = self.get_toolchain('gompi', version='2018a')
+
+        checks = {
+            '-a': 'a',
+            '-openmp': 'openmp',
+            '-foo': ['foo'],
+            '-foo -bar': ['foo', 'bar'],
+        }
+
+        for flagstring, flags in checks.items():
+            tc.options.options_map['openmp'] = flags
+            self.assertEqual(tc.get_flag('openmp'), flagstring)
 
 
 def suite():

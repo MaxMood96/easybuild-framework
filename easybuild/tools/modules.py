@@ -1,5 +1,5 @@
 ##
-# Copyright 2009-2023 Ghent University
+# Copyright 2009-2025 Ghent University
 #
 # This file is part of EasyBuild,
 # originally created by the HPC team of Ghent University (http://ugent.be/hpc/en),
@@ -37,6 +37,7 @@ Authors:
 * Jens Timmerman (Ghent University)
 * David Brown (Pacific Northwest National Laboratory)
 """
+import glob
 import os
 import re
 import shlex
@@ -52,6 +53,7 @@ from easybuild.tools.filetools import convert_name, mkdir, normalize_path, path_
 from easybuild.tools.module_naming_scheme.mns import DEVEL_MODULE_SUFFIX
 from easybuild.tools.py2vs3 import subprocess_popen_text
 from easybuild.tools.run import run_cmd
+from easybuild.tools.systemtools import get_shared_lib_ext
 from easybuild.tools.utilities import get_subclasses, nub
 
 # software root/version environment variable name prefixes
@@ -307,9 +309,9 @@ class ModulesTool(object):
         """Check whether selected module tool matches 'module' function definition."""
         if self.testing:
             # grab 'module' function definition from environment if it's there; only during testing
-            if 'module' in os.environ:
+            try:
                 out, ec = os.environ['module'], 0
-            else:
+            except KeyError:
                 out, ec = None, 1
         else:
             cmd = "type module"
@@ -851,6 +853,8 @@ class ModulesTool(object):
             # this needs to be taken into account when updating the environment via produced output, see below
 
             # keep track of current values of select env vars, so we can correct the adjusted values below
+            # Identical to `{key: os.environ.get(key, '').split(os.pathsep)[::-1] for key in LD_ENV_VAR_KEYS}`
+            # but Python 2 treats that as a local function and refused the `exec` below
             prev_ld_values = dict([(key, os.environ.get(key, '').split(os.pathsep)[::-1]) for key in LD_ENV_VAR_KEYS])
 
             # Change the environment
@@ -1126,7 +1130,7 @@ class ModulesTool(object):
 
         if modpath_exts is None:
             # only retain dependencies that have a non-empty lists of $MODULEPATH extensions
-            modpath_exts = dict([(k, v) for k, v in self.modpath_extensions_for(deps).items() if v])
+            modpath_exts = {k: v for k, v in self.modpath_extensions_for(deps).items() if v}
             self.log.debug("Non-empty lists of module path extensions for dependencies: %s" % modpath_exts)
 
         mods_to_top = []
@@ -1157,7 +1161,7 @@ class ModulesTool(object):
         path = mods_to_top[:]
         if mods_to_top:
             # remove retained dependencies from the list, since we're climbing up the module tree
-            remaining_modpath_exts = dict([m for m in modpath_exts.items() if not m[0] in mods_to_top])
+            remaining_modpath_exts = {m: v for m, v in modpath_exts.items() if m not in mods_to_top}
 
             self.log.debug("Path to top from %s extended to %s, so recursing to find way to the top",
                            mod_name, mods_to_top)
@@ -1283,14 +1287,14 @@ class EnvironmentModulesTcl(EnvironmentModulesC):
 
         return super(EnvironmentModulesTcl, self).run_module(*args, **kwargs)
 
-    def available(self, mod_name=None):
+    def available(self, mod_name=None, extra_args=None):
         """
         Return a list of available modules for the given (partial) module name;
         use None to obtain a list of all available modules.
 
         :param mod_name: a (partial) module name for filtering (default: None)
         """
-        mods = super(EnvironmentModulesTcl, self).available(mod_name=mod_name)
+        mods = super(EnvironmentModulesTcl, self).available(mod_name=mod_name, extra_args=extra_args)
         # strip off slash at beginning, if it's there
         # under certain circumstances, 'modulecmd.tcl avail' (DEISA variant) spits out available modules like this
         clean_mods = [mod.lstrip(os.path.sep) for mod in mods]
@@ -1326,7 +1330,57 @@ class EnvironmentModules(EnvironmentModulesTcl):
     COMMAND_ENVIRONMENT = 'MODULES_CMD'
     REQ_VERSION = '4.0.0'
     MAX_VERSION = None
-    VERSION_REGEXP = r'^Modules\s+Release\s+(?P<version>\d\S*)\s'
+    VERSION_REGEXP = r'^Modules\s+Release\s+(?P<version>\d[^+\s]*)(\+\S*)?\s'
+
+    SHOW_HIDDEN_OPTION = '--all'
+
+    def __init__(self, *args, **kwargs):
+        """Constructor, set Environment Modules-specific class variable values."""
+        # ensure in-depth modulepath search (MODULES_AVAIL_INDEPTH has been introduced in v4.3)
+        setvar('MODULES_AVAIL_INDEPTH', '1', verbose=False)
+        # match against module name start (MODULES_SEARCH_MATCH has been introduced in v4.3)
+        setvar('MODULES_SEARCH_MATCH', 'starts_with', verbose=False)
+        # ensure no debug message (MODULES_VERBOSITY has been introduced in v4.3)
+        setvar('MODULES_VERBOSITY', 'normal', verbose=False)
+        # make module search case sensitive (search is case insensitive by default since v5.0)
+        setvar('MODULES_ICASE', 'never', verbose=False)
+        # disable extended default (introduced in v4.4 and enabled by default in v5.0)
+        setvar('MODULES_EXTENDED_DEFAULT', '0', verbose=False)
+        # hard disable output redirection, output messages are expected on stderr
+        setvar('MODULES_REDIRECT_OUTPUT', '0', verbose=False)
+        # make sure modulefile cache is ignored (cache mechanism supported since v5.3)
+        setvar('MODULES_IGNORE_CACHE', '1', verbose=False)
+        # ensure only module names are returned on avail (MODULES_AVAIL_TERSE_OUTPUT added in v4.7)
+        setvar('MODULES_AVAIL_TERSE_OUTPUT', '', verbose=False)
+        # ensure only module names are returned on list (MODULES_LIST_TERSE_OUTPUT added in v4.7)
+        setvar('MODULES_LIST_TERSE_OUTPUT', '', verbose=False)
+
+        super(EnvironmentModules, self).__init__(*args, **kwargs)
+
+    def check_module_function(self, allow_mismatch=False, regex=None):
+        """Check whether selected module tool matches 'module' function definition."""
+        # Modules 5.1.0+: module command is called from _module_raw shell function
+        # Modules 4.2.0..5.0.1: module command is called from _module_raw shell function if it has
+        #   been initialized in an interactive shell session (i.e., a session attached to a tty)
+        if self.testing:
+            if '_module_raw' in os.environ:
+                out, ec = os.environ['_module_raw'], 0
+            else:
+                out, ec = None, 1
+        else:
+            cmd = "type _module_raw"
+            out, ec = run_cmd(cmd, simple=False, log_ok=False, log_all=False, force_in_dry_run=True, trace=False)
+
+        if regex is None:
+            regex = r".*%s" % os.path.basename(self.cmd)
+        mod_cmd_re = re.compile(regex, re.M)
+
+        if ec == 0 and mod_cmd_re.search(out):
+            self.log.debug("Found pattern '%s' in defined '_module_raw' function." % mod_cmd_re.pattern)
+        else:
+            self.log.debug("Pattern '%s' not found in '_module_raw' function, falling back to 'module' function",
+                           mod_cmd_re.pattern)
+            super(EnvironmentModules, self).check_module_function(allow_mismatch, regex)
 
     def check_module_output(self, cmd, stdout, stderr):
         """Check output of 'module' command, see if if is potentially invalid."""
@@ -1334,6 +1388,42 @@ class EnvironmentModules(EnvironmentModulesTcl):
             raise EasyBuildError("Failed module command detected: %s (stdout: %s, stderr: %s)", cmd, stdout, stderr)
         else:
             self.log.debug("No errors detected when running module command '%s'", cmd)
+
+    def available(self, mod_name=None, extra_args=None):
+        """
+        Return a list of available modules for the given (partial) module name;
+        use None to obtain a list of all available modules.
+
+        :param mod_name: a (partial) module name for filtering (default: None)
+        """
+        if extra_args is None:
+            extra_args = []
+        # make hidden modules visible (requires Environment Modules 4.6.0)
+        if StrictVersion(self.version) >= StrictVersion('4.6.0'):
+            extra_args.append(self.SHOW_HIDDEN_OPTION)
+
+        return super(EnvironmentModules, self).available(mod_name=mod_name, extra_args=extra_args)
+
+    def get_setenv_value_from_modulefile(self, mod_name, var_name):
+        """
+        Get value for specific 'setenv' statement from module file for the specified module.
+
+        :param mod_name: module name
+        :param var_name: name of the variable being set for which value should be returned
+        """
+        # Tcl-based module tools produce "module show" output with setenv statements like:
+        # "setenv		 GCC_PATH /opt/gcc/8.3.0"
+        # "setenv		 VAR {some text}
+        # - line starts with 'setenv'
+        # - whitespace (spaces & tabs) around variable name
+        # - curly braces around value if it contain spaces
+        value = super(EnvironmentModules, self).get_setenv_value_from_modulefile(mod_name=mod_name,
+                                                                                 var_name=var_name)
+
+        if value:
+            value = value.strip('{}')
+
+        return value
 
 
 class Lmod(ModulesTool):
@@ -1345,7 +1435,6 @@ class Lmod(ModulesTool):
     DEPR_VERSION = '7.0.0'
     REQ_VERSION_DEPENDS_ON = '7.6.1'
     VERSION_REGEXP = r"^Modules\s+based\s+on\s+Lua:\s+Version\s+(?P<version>\d\S*)\s"
-    USER_CACHE_DIR = os.path.join(os.path.expanduser('~'), '.lmod.d', '.cache')
 
     SHOW_HIDDEN_OPTION = '--show-hidden'
 
@@ -1359,9 +1448,19 @@ class Lmod(ModulesTool):
         setvar('LMOD_REDIRECT', 'no', verbose=False)
         # disable extended defaults within Lmod (introduced and set as default in Lmod 8.0.7)
         setvar('LMOD_EXTENDED_DEFAULT', 'no', verbose=False)
+        # disabled decorations in "ml --terse avail" output
+        # (introduced in Lmod 8.8, see also https://github.com/TACC/Lmod/issues/690)
+        setvar('LMOD_TERSE_DECORATIONS', 'no', verbose=False)
 
         super(Lmod, self).__init__(*args, **kwargs)
-        self.supports_depends_on = StrictVersion(self.version) >= StrictVersion(self.REQ_VERSION_DEPENDS_ON)
+        version = StrictVersion(self.version)
+
+        self.supports_depends_on = version >= self.REQ_VERSION_DEPENDS_ON
+        # See https://lmod.readthedocs.io/en/latest/125_personal_spider_cache.html
+        if version >= '8.7.12':
+            self.USER_CACHE_DIR = os.path.join(os.path.expanduser('~'), '.cache', 'lmod')
+        else:
+            self.USER_CACHE_DIR = os.path.join(os.path.expanduser('~'), '.lmod.d', '.cache')
 
     def check_module_function(self, *args, **kwargs):
         """Check whether selected module tool matches 'module' function definition."""
@@ -1436,7 +1535,8 @@ class Lmod(ModulesTool):
                 # don't actually update local cache when testing, just return the cache contents
                 return stdout
             else:
-                cache_fp = os.path.join(self.USER_CACHE_DIR, 'moduleT.lua')
+                suffix = build_option('module_cache_suffix') or ''
+                cache_fp = os.path.join(self.USER_CACHE_DIR, 'moduleT%s.lua' % suffix)
                 self.log.debug("Updating Lmod spider cache %s with output from '%s'" % (cache_fp, ' '.join(cmd)))
                 cache_dir = os.path.dirname(cache_fp)
                 if not os.path.exists(cache_dir):
@@ -1560,9 +1660,7 @@ def get_software_root(name, with_env_var=False):
     """
     env_var = get_software_root_env_var_name(name)
 
-    root = None
-    if env_var in os.environ:
-        root = os.getenv(env_var)
+    root = os.getenv(env_var)
 
     if with_env_var:
         res = (root, env_var)
@@ -1578,6 +1676,7 @@ def get_software_libdir(name, only_one=True, fs=None):
 
     Returns the library subdirectory, relative to software root.
     It fails if multiple library subdirs are found, unless only_one is False which yields a list of all library subdirs.
+    If only_one is True and fs is None, select the one subdirectory with shared or static libraries, if possible.
 
     :param name: name of the software package
     :param only_one: indicates whether only one lib path is expected to be found
@@ -1610,6 +1709,16 @@ def get_software_libdir(name, only_one=True, fs=None):
             if len(res) == 1:
                 res = res[0]
             else:
+                if fs is None and len(res) == 2:
+                    # if both lib and lib64 were found, check if only one (exactly) has libraries;
+                    # this is needed for software with library archives in lib64 but other files/directories in lib
+                    lib_glob = ['*.%s' % ext for ext in ['a', get_shared_lib_ext()]]
+                    has_libs = [any(glob.glob(os.path.join(root, subdir, f)) for f in lib_glob) for subdir in res]
+                    if has_libs[0] and not has_libs[1]:
+                        return res[0]
+                    elif has_libs[1] and not has_libs[0]:
+                        return res[1]
+
                 raise EasyBuildError("Multiple library subdirectories found for %s in %s: %s",
                                      name, root, ', '.join(res))
         return res
@@ -1630,9 +1739,7 @@ def get_software_version(name):
     """
     env_var = get_software_version_env_var_name(name)
 
-    version = None
-    if env_var in os.environ:
-        version = os.getenv(env_var)
+    version = os.getenv(env_var)
 
     return version
 
@@ -1661,7 +1768,7 @@ def avail_modules_tools():
     """
     Return all known modules tools.
     """
-    class_dict = dict([(x.__name__, x) for x in get_subclasses(ModulesTool)])
+    class_dict = {x.__name__: x for x in get_subclasses(ModulesTool)}
     # filter out legacy Modules class
     if 'Modules' in class_dict:
         del class_dict['Modules']

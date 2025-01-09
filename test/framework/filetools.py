@@ -1,5 +1,5 @@
 # #
-# Copyright 2012-2023 Ghent University
+# Copyright 2012-2025 Ghent University
 #
 # This file is part of EasyBuild,
 # originally created by the HPC team of Ghent University (http://ugent.be/hpc/en),
@@ -32,7 +32,9 @@ Unit tests for filetools.py
 @author: Maxime Boissonneault (Compute Canada, Universite Laval)
 """
 import datetime
+import filecmp
 import glob
+import logging
 import os
 import re
 import shutil
@@ -45,10 +47,13 @@ from test.framework.utilities import EnhancedTestCase, TestLoaderFiltered, init_
 from unittest import TextTestRunner
 from easybuild.tools import run
 import easybuild.tools.filetools as ft
+import easybuild.tools.py2vs3 as py2vs3
 from easybuild.tools.build_log import EasyBuildError
 from easybuild.tools.config import IGNORE, ERROR, build_option, update_build_option
 from easybuild.tools.multidiff import multidiff
 from easybuild.tools.py2vs3 import StringIO, std_urllib
+from easybuild.tools.run import run_cmd
+from easybuild.tools.systemtools import LINUX, get_os_type
 
 
 class FileToolsTest(EnhancedTestCase):
@@ -103,7 +108,7 @@ class FileToolsTest(EnhancedTestCase):
             ('test.txz', "unset TAPE; unxz test.txz --stdout | tar x"),
             ('test.iso', "7z x test.iso"),
             ('test.tar.Z', "tar xzf test.tar.Z"),
-            ('test.foo.bar.sh', "cp -a test.foo.bar.sh ."),
+            ('test.foo.bar.sh', "cp -dR test.foo.bar.sh ."),
             # check whether extension is stripped correct to determine name of target file
             # cfr. https://github.com/easybuilders/easybuild-framework/pull/3705
             ('testbz2.bz2', "bunzip2 -c testbz2.bz2 > testbz2"),
@@ -296,10 +301,26 @@ class FileToolsTest(EnhancedTestCase):
                       'b7297da8b547d5e74b851d7c4e475900cec4744df0f887ae5c05bf1757c224b4',
         }
 
+        old_log_level = ft._log.getEffectiveLevel()
+        ft._log.setLevel(logging.DEBUG)
         # make sure checksums computation/verification is correct
         for checksum_type, checksum in known_checksums.items():
             self.assertEqual(ft.compute_checksum(fp, checksum_type=checksum_type), checksum)
-            self.assertTrue(ft.verify_checksum(fp, (checksum_type, checksum)))
+            with self.log_to_testlogfile():
+                self.assertTrue(ft.verify_checksum(fp, (checksum_type, checksum)))
+            self.assertIn('Computed ' + checksum_type, ft.read_file(self.logfile))
+            # Passing precomputed checksums reuses it
+            with self.log_to_testlogfile():
+                computed_checksums = {checksum_type: checksum}
+                self.assertTrue(ft.verify_checksum(fp, (checksum_type, checksum), computed_checksums))
+            self.assertIn('Precomputed ' + checksum_type, ft.read_file(self.logfile))
+            # If the type isn't contained the checksum will be computed
+            with self.log_to_testlogfile():
+                computed_checksums = {'doesnt exist': 'checksum'}
+                self.assertTrue(ft.verify_checksum(fp, (checksum_type, checksum), computed_checksums))
+            self.assertIn('Computed ' + checksum_type, ft.read_file(self.logfile))
+
+        ft._log.setLevel(old_log_level)
 
         # default checksum type is MD5
         self.assertEqual(ft.compute_checksum(fp), known_checksums['md5'])
@@ -319,7 +340,7 @@ class FileToolsTest(EnhancedTestCase):
             self.assertErrorRegex(EasyBuildError, error_pattern, ft.verify_checksum, fp, checksum)
 
         # make sure faulty checksums are reported
-        broken_checksums = dict([(typ, val[:-3] + 'foo') for (typ, val) in known_checksums.items()])
+        broken_checksums = {typ: (val[:-3] + 'foo') for typ, val in known_checksums.items()}
         for checksum_type, checksum in broken_checksums.items():
             self.assertFalse(ft.compute_checksum(fp, checksum_type=checksum_type) == checksum)
             self.assertFalse(ft.verify_checksum(fp, (checksum_type, checksum)))
@@ -348,6 +369,14 @@ class FileToolsTest(EnhancedTestCase):
         alt_checksums = ('7167b64b1ca062b9674ffef46f9325db7167b64b1ca062b9674ffef46f9325db', broken_checksums['sha256'])
         self.assertFalse(ft.verify_checksum(fp, alt_checksums))
 
+        # Check dictionary
+        alt_checksums = (known_checksums['sha256'],)
+        self.assertTrue(ft.verify_checksum(fp, {os.path.basename(fp): known_checksums['sha256']}))
+        faulty_dict = {'wrong-name': known_checksums['sha256']}
+        self.assertErrorRegex(EasyBuildError,
+                              "Missing checksum for " + os.path.basename(fp) + " in .*wrong-name.*",
+                              ft.verify_checksum, fp, faulty_dict)
+
         # check whether missing checksums are enforced
         build_options = {
             'enforce_checksums': True,
@@ -362,6 +391,8 @@ class FileToolsTest(EnhancedTestCase):
         for checksum in [known_checksums[x] for x in ('md5', 'sha256')]:
             dict_checksum = {os.path.basename(fp): checksum, 'foo': 'baa'}
             self.assertTrue(ft.verify_checksum(fp, dict_checksum))
+            del dict_checksum[os.path.basename(fp)]
+            self.assertErrorRegex(EasyBuildError, "Missing checksum for", ft.verify_checksum, fp, dict_checksum)
 
     def test_common_path_prefix(self):
         """Test get common path prefix for a list of paths."""
@@ -513,7 +544,7 @@ class FileToolsTest(EnhancedTestCase):
         if ft.HAVE_REQUESTS:
             res = ft.download_file(fn, url, target)
             self.assertTrue(res and os.path.exists(res))
-            self.assertIn("https://easybuilders.github.io/easybuild", ft.read_file(res))
+            self.assertIn("https://easybuild.io", ft.read_file(res))
 
         # without requests being available, error is raised
         ft.HAVE_REQUESTS = False
@@ -529,7 +560,7 @@ class FileToolsTest(EnhancedTestCase):
         if ft.HAVE_REQUESTS:
             res = ft.download_file(fn, url, target)
             self.assertTrue(res and os.path.exists(res))
-            self.assertIn("https://easybuilders.github.io/easybuild", ft.read_file(res))
+            self.assertIn("https://easybuild.io", ft.read_file(res))
 
         # without requests being available, error is raised
         ft.HAVE_REQUESTS = False
@@ -609,7 +640,7 @@ class FileToolsTest(EnhancedTestCase):
 
             self.assertIn("WARNING: Not checking server certificates while downloading README.rst", stderr)
             self.assertExists(res)
-            self.assertIn("https://easybuilders.github.io/easybuild", ft.read_file(res))
+            self.assertIn("https://easybuild.io", ft.read_file(res))
 
     def test_mkdir(self):
         """Test mkdir function."""
@@ -1494,8 +1525,7 @@ class FileToolsTest(EnhancedTestCase):
         lic_server = '1234@example.license.server'
 
         # make test robust against environment in which $LM_LICENSE_FILE is defined
-        if 'LM_LICENSE_FILE' in os.environ:
-            del os.environ['LM_LICENSE_FILE']
+        os.environ.pop('LM_LICENSE_FILE', None)
 
         # default return value
         self.assertEqual(ft.find_flexlm_license(), ([], None))
@@ -1829,6 +1859,19 @@ class FileToolsTest(EnhancedTestCase):
             # printing this message will make test suite fail in Travis/GitHub CI,
             # since we check for unexpected output produced by the tests
             print("Skipping overwrite-file-owned-by-other-user copy_file test (%s is missing)" % test_file_to_overwrite)
+        # Copy a file to a directory owned by some other user, e.g. /tmp (owned by root)
+        # This might be a common choice for e.g. --copy-ec
+        target_file_path = tempfile.mktemp("easybuild", dir="/tmp")
+        test_file_to_copy = os.path.join(self.test_prefix, os.path.basename(target_file_path))
+        ft.write_file(test_file_to_copy, test_file_contents)
+        try:
+            ft.copy_file(test_file_to_copy, '/tmp')
+            self.assertEqual(ft.read_file(target_file_path), test_file_contents)
+        finally:
+            try:
+                os.remove(target_file_path)
+            except FileNotFoundError:
+                pass
 
         # also test behaviour of copy_file under --dry-run
         build_options = {
@@ -1871,6 +1914,47 @@ class FileToolsTest(EnhancedTestCase):
         self.assertTrue(re.search("^copied file %s to %s" % (src, target), txt))
         # However, if we add 'force_in_dry_run=True' it should throw an exception
         self.assertErrorRegex(EasyBuildError, "Could not copy *", ft.copy_file, src, target, force_in_dry_run=True)
+
+    def test_copy_file_xattr(self):
+        """Test copying a file with extended attributes using copy_file."""
+        # test copying a read-only files with extended attributes set
+        # first, create a special file with extended attributes
+        special_file = os.path.join(self.test_prefix, 'special.txt')
+        ft.write_file(special_file, 'special')
+        # make read-only, and set extended attributes
+        attr = ft.which('attr')
+        xattr = ft.which('xattr')
+        # try to attr (Linux) or xattr (macOS) to set extended attributes foo=bar
+        cmd = None
+        if attr:
+            cmd = "attr -s foo -V bar %s" % special_file
+        elif xattr:
+            cmd = "xattr -w foo bar %s" % special_file
+
+        if cmd:
+            (_, ec) = run_cmd(cmd, simple=False, log_all=False, log_ok=False)
+
+            # need to make file read-only after setting extended attribute
+            ft.adjust_permissions(special_file, stat.S_IWUSR | stat.S_IWGRP | stat.S_IWOTH, add=False)
+
+            # only proceed if setting extended attribute worked
+            if ec == 0:
+                target = os.path.join(self.test_prefix, 'copy.txt')
+                ft.copy_file(special_file, target)
+                self.assertTrue(os.path.exists(target))
+                self.assertTrue(filecmp.cmp(special_file, target, shallow=False))
+
+                # only verify wheter extended attributes were also copied on Linux,
+                # since shutil.copy2 doesn't copy them on macOS;
+                # see warning at https://docs.python.org/3/library/shutil.html
+                if get_os_type() == LINUX:
+                    if attr:
+                        cmd = "attr -g foo %s" % target
+                    else:
+                        cmd = "xattr -l %s" % target
+                    (out, ec) = run_cmd(cmd, simple=False, log_all=False, log_ok=False)
+                    self.assertEqual(ec, 0)
+                    self.assertTrue(out.endswith('\nbar\n'))
 
     def test_copy_files(self):
         """Test copy_files function."""
@@ -2390,7 +2474,7 @@ class FileToolsTest(EnhancedTestCase):
         # test with specified path with and without trailing '/'s
         for path in [test_ecs, test_ecs + '/', test_ecs + '//']:
             index = ft.create_index(path)
-            self.assertEqual(len(index), 91)
+            self.assertEqual(len(index), 94)
 
             expected = [
                 os.path.join('b', 'bzip2', 'bzip2-1.0.6-GCC-4.9.2.eb'),
@@ -2619,8 +2703,7 @@ class FileToolsTest(EnhancedTestCase):
         """Test find_eb_script function."""
 
         # make sure $EB_SCRIPT_PATH is not set already (used as fallback mechanism in find_eb_script)
-        if 'EB_SCRIPT_PATH' in os.environ:
-            del os.environ['EB_SCRIPT_PATH']
+        os.environ.pop('EB_SCRIPT_PATH', None)
 
         self.assertExists(ft.find_eb_script('rpath_args.py'))
         self.assertExists(ft.find_eb_script('rpath_wrapper_template.sh.in'))
@@ -2808,6 +2891,32 @@ class FileToolsTest(EnhancedTestCase):
         ]) % git_repo
         run_check()
 
+        git_config['recurse_submodules'] = ['!vcflib', '!sdsl-lite']
+        expected = '\n'.join([
+            '  running command "git clone --depth 1 --branch tag_for_tests --recursive'
+            + ' --recurse-submodules=\'!vcflib\' --recurse-submodules=\'!sdsl-lite\' %(git_repo)s"',
+            r"  \(in .*/tmp.*\)",
+            r'  running command "tar cfvz .*/target/test.tar.gz --exclude .git testrepository"',
+            r"  \(in .*/tmp.*\)",
+        ]) % git_repo
+        run_check()
+
+        git_config['extra_config_params'] = [
+            'submodule."fastahack".active=false',
+            'submodule."sha1".active=false',
+        ]
+        expected = '\n'.join([
+            '  running command "git -c submodule."fastahack".active=false -c submodule."sha1".active=false'
+            + ' clone --depth 1 --branch tag_for_tests --recursive'
+            + ' --recurse-submodules=\'!vcflib\' --recurse-submodules=\'!sdsl-lite\' %(git_repo)s"',
+            r"  \(in .*/tmp.*\)",
+            r'  running command "tar cfvz .*/target/test.tar.gz --exclude .git testrepository"',
+            r"  \(in .*/tmp.*\)",
+        ]) % git_repo
+        run_check()
+        del git_config['recurse_submodules']
+        del git_config['extra_config_params']
+
         git_config['keep_git_dir'] = True
         expected = '\n'.join([
             r'  running command "git clone --branch tag_for_tests --recursive %(git_repo)s"',
@@ -2830,7 +2939,20 @@ class FileToolsTest(EnhancedTestCase):
         ]) % git_repo
         run_check()
 
+        git_config['recurse_submodules'] = ['!vcflib', '!sdsl-lite']
+        expected = '\n'.join([
+            r'  running command "git clone --no-checkout %(git_repo)s"',
+            r"  \(in .*/tmp.*\)",
+            '  running command "git checkout 8456f86 && git submodule update --init --recursive'
+            + ' --recurse-submodules=\'!vcflib\' --recurse-submodules=\'!sdsl-lite\'"',
+            r"  \(in testrepository\)",
+            r'  running command "tar cfvz .*/target/test.tar.gz --exclude .git testrepository"',
+            r"  \(in .*/tmp.*\)",
+        ]) % git_repo
+        run_check()
+
         del git_config['recursive']
+        del git_config['recurse_submodules']
         expected = '\n'.join([
             r'  running command "git clone --no-checkout %(git_repo)s"',
             r"  \(in .*/tmp.*\)",
@@ -3388,6 +3510,17 @@ class FileToolsTest(EnhancedTestCase):
         dir_perms = os.lstat(test_subdir)[stat.ST_MODE]
         self.assertEqual(dir_perms & stat.S_ISGID, stat.S_ISGID)
         self.assertEqual(dir_perms & stat.S_ISVTX, stat.S_ISVTX)
+
+    def test_compat_makedirs(self):
+        """Test compatibility layer for Python3 os.makedirs"""
+        name = os.path.join(self.test_prefix, 'folder')
+        self.assertNotExists(name)
+        py2vs3.makedirs(name)
+        self.assertExists(name)
+        # exception is raised because file exists (OSError in Python 2, FileExistsError in Python 3)
+        self.assertErrorRegex(Exception, '.*', py2vs3.makedirs, name)
+        py2vs3.makedirs(name, exist_ok=True)  # No error
+        self.assertExists(name)
 
     def test_create_unused_dir(self):
         """Test create_unused_dir function."""

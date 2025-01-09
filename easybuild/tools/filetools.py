@@ -1,5 +1,5 @@
 # #
-# Copyright 2009-2023 Ghent University
+# Copyright 2009-2025 Ghent University
 #
 # This file is part of EasyBuild,
 # originally created by the HPC team of Ghent University (http://ugent.be/hpc/en),
@@ -42,12 +42,13 @@ Authors:
 """
 import datetime
 import difflib
+import filecmp
 import glob
 import hashlib
-import imp
 import inspect
 import itertools
 import os
+import platform
 import re
 import shutil
 import signal
@@ -60,13 +61,13 @@ import zlib
 from functools import partial
 
 from easybuild.base import fancylogger
-from easybuild.tools import run
+from easybuild.tools import LooseVersion, run
 # import build_log must stay, to use of EasyBuildLog
 from easybuild.tools.build_log import EasyBuildError, dry_run_msg, print_msg, print_warning
 from easybuild.tools.config import DEFAULT_WAIT_ON_LOCK_INTERVAL, ERROR, GENERIC_EASYBLOCK_PKG, IGNORE, WARN
 from easybuild.tools.config import build_option, install_path
 from easybuild.tools.output import PROGRESS_BAR_DOWNLOAD_ONE, start_progress_bar, stop_progress_bar, update_progress_bar
-from easybuild.tools.py2vs3 import HTMLParser, std_urllib, string_type
+from easybuild.tools.py2vs3 import HTMLParser, load_source, makedirs, std_urllib, string_type
 from easybuild.tools.utilities import natural_keys, nub, remove_unwanted_chars, trace_msg
 
 try:
@@ -162,7 +163,7 @@ EXTRACT_CMDS = {
     # tar.Z: using compress (LZW), but can be handled with gzip so use 'z'
     '.tar.z': "tar xzf %(filepath)s",
     # shell scripts don't need to be unpacked, just copy there
-    '.sh': "cp -a %(filepath)s .",
+    '.sh': "cp -dR %(filepath)s .",
 }
 
 ZIPPED_PATCH_EXTS = ('.bz2', '.gz', '.xz')
@@ -753,10 +754,6 @@ def download_file(filename, url, path, forced=False):
     _log.debug("Trying to download %s from %s to %s", filename, url, path)
 
     timeout = build_option('download_timeout')
-    if timeout is None:
-        # default to 10sec timeout if none was specified
-        # default system timeout (used is nothing is specified) may be infinite (?)
-        timeout = 10
     _log.debug("Using timeout of %s seconds for initiating download" % timeout)
 
     # parse option HTTP header fields for URLs containing a pattern
@@ -971,11 +968,12 @@ def load_index(path, ignore_dirs=None):
         # check whether index is still valid
         if valid_ts:
             curr_ts = datetime.datetime.now()
+            terse = build_option('terse')
             if curr_ts > valid_ts:
-                print_warning("Index for %s is no longer valid (too old), so ignoring it...", path)
+                print_warning("Index for %s is no longer valid (too old), so ignoring it...", path, silent=terse)
                 index = None
             else:
-                print_msg("found valid index for %s, so using it...", path)
+                print_msg("found valid index for %s, so using it...", path, silent=terse)
 
     return index or None
 
@@ -1246,12 +1244,16 @@ def calc_block_checksum(path, algorithm):
     return algorithm.hexdigest()
 
 
-def verify_checksum(path, checksums):
+def verify_checksum(path, checksums, computed_checksums=None):
     """
     Verify checksum of specified file.
 
     :param path: path of file to verify checksum of
-    :param checksums: checksum values (and type, optionally, default is MD5), e.g., 'af314', ('sha', '5ec1b')
+    :param checksums: checksum values to compare to
+                      (and type, optionally, default is MD5), e.g., 'af314', ('sha', '5ec1b')
+    :param computed_checksums: Optional dictionary of (current) checksum(s) for this file
+                               indexed by the checksum type (e.g. 'sha256').
+                               Each existing entry will be used, missing ones will be computed.
     """
 
     filename = os.path.basename(path)
@@ -1269,14 +1271,11 @@ def verify_checksum(path, checksums):
 
     for checksum in checksums:
         if isinstance(checksum, dict):
-            if filename in checksum:
+            try:
                 # Set this to a string-type checksum
                 checksum = checksum[filename]
-            elif build_option('enforce_checksums'):
-                raise EasyBuildError("Missing checksum for %s", filename)
-            else:
-                # Set to None and allow to fail elsewhere
-                checksum = None
+            except KeyError:
+                raise EasyBuildError("Missing checksum for %s in %s", filename, checksum)
 
         if isinstance(checksum, string_type):
             # if no checksum type is specified, it is assumed to be MD5 (32 characters) or SHA256 (64 characters)
@@ -1306,11 +1305,18 @@ def verify_checksum(path, checksums):
                 # no matching checksums
                 return False
         else:
-            raise EasyBuildError("Invalid checksum spec '%s', should be a string (MD5) or 2-tuple (type, value).",
+            raise EasyBuildError("Invalid checksum spec '%s': should be a string (MD5 or SHA256), "
+                                 "2-tuple (type, value), or tuple of alternative checksum specs.",
                                  checksum)
 
-        actual_checksum = compute_checksum(path, typ)
-        _log.debug("Computed %s checksum for %s: %s (correct checksum: %s)" % (typ, path, actual_checksum, checksum))
+        if computed_checksums is not None and typ in computed_checksums:
+            actual_checksum = computed_checksums[typ]
+            computed_str = 'Precomputed'
+        else:
+            actual_checksum = compute_checksum(path, typ)
+            computed_str = 'Computed'
+        _log.debug("%s %s checksum for %s: %s (correct checksum: %s)" %
+                   (computed_str, typ, path, actual_checksum, checksum))
 
         if actual_checksum != checksum:
             return False
@@ -1923,7 +1929,7 @@ def mkdir(path, parents=False, set_gid=None, sticky=None):
                 # climb up until we hit an existing path or the empty string (for relative paths)
                 while existing_parent_path and not os.path.exists(existing_parent_path):
                     existing_parent_path = os.path.dirname(existing_parent_path)
-                os.makedirs(path)
+                makedirs(path, exist_ok=True)
             else:
                 os.mkdir(path)
         except OSError as err:
@@ -2415,20 +2421,58 @@ def copy_file(path, target_path, force_in_dry_run=False):
         try:
             # check whether path to copy exists (we could be copying a broken symlink, which is supported)
             path_exists = os.path.exists(path)
+            # If target is a folder, the target_path will be a file with the same name inside the folder
+            if os.path.isdir(target_path):
+                target_path = os.path.join(target_path, os.path.basename(path))
             target_exists = os.path.exists(target_path)
+
             if target_exists and path_exists and os.path.samefile(path, target_path):
                 _log.debug("Not copying %s to %s since files are identical", path, target_path)
             # if target file exists and is owned by someone else than the current user,
-            # try using shutil.copyfile to just copy the file contents
-            # since shutil.copy2 will fail when trying to copy over file metadata (since chown requires file ownership)
+            # copy just the file contents (shutil.copyfile instead of shutil.copy2)
+            # since copying the file metadata/permissions will fail since chown requires file ownership
             elif target_exists and os.stat(target_path).st_uid != os.getuid():
                 shutil.copyfile(path, target_path)
                 _log.info("Copied contents of file %s to %s", path, target_path)
             else:
                 mkdir(os.path.dirname(target_path), parents=True)
                 if path_exists:
-                    shutil.copy2(path, target_path)
-                    _log.info("%s copied to %s", path, target_path)
+                    try:
+                        # on filesystems that support extended file attributes, copying read-only files with
+                        # shutil.copy2() will give a PermissionError, when using Python < 3.7
+                        # see https://bugs.python.org/issue24538
+                        shutil.copy2(path, target_path)
+                        _log.info("%s copied to %s", path, target_path)
+                    # catch the more general OSError instead of PermissionError,
+                    # since Python 2.7 doesn't support PermissionError
+                    except OSError as err:
+                        # if file is writable (not read-only), then we give up since it's not a simple permission error
+                        if os.path.exists(target_path) and os.stat(target_path).st_mode & stat.S_IWUSR:
+                            raise EasyBuildError("Failed to copy file %s to %s: %s", path, target_path, err)
+
+                        pyver = LooseVersion(platform.python_version())
+                        if pyver >= LooseVersion('3.7'):
+                            raise EasyBuildError("Failed to copy file %s to %s: %s", path, target_path, err)
+                        elif LooseVersion('3.7') > pyver >= LooseVersion('3'):
+                            if not isinstance(err, PermissionError):
+                                raise EasyBuildError("Failed to copy file %s to %s: %s", path, target_path, err)
+
+                        # double-check whether the copy actually succeeded
+                        if not os.path.exists(target_path) or not filecmp.cmp(path, target_path, shallow=False):
+                            raise EasyBuildError("Failed to copy file %s to %s: %s", path, target_path, err)
+
+                        try:
+                            # re-enable user write permissions in target, copy xattrs, then remove write perms again
+                            adjust_permissions(target_path, stat.S_IWUSR)
+                            shutil._copyxattr(path, target_path)
+                            adjust_permissions(target_path, stat.S_IWUSR, add=False)
+                        except OSError as err:
+                            raise EasyBuildError("Failed to copy file %s to %s: %s", path, target_path, err)
+
+                        msg = ("Failed to copy extended attributes from file %s to %s, due to a bug in shutil (see "
+                               "https://bugs.python.org/issue24538). Copy successful with workaround.")
+                        _log.info(msg, path, target_path)
+
                 elif os.path.islink(path):
                     if os.path.isdir(target_path):
                         target_path = os.path.join(target_path, os.path.basename(path))
@@ -2624,6 +2668,8 @@ def get_source_tarball_from_git(filename, targetdir, git_config):
     recursive = git_config.pop('recursive', False)
     clone_into = git_config.pop('clone_into', False)
     keep_git_dir = git_config.pop('keep_git_dir', False)
+    extra_config_params = git_config.pop('extra_config_params', None)
+    recurse_submodules = git_config.pop('recurse_submodules', None)
 
     # input validation of git_config dict
     if git_config:
@@ -2649,7 +2695,11 @@ def get_source_tarball_from_git(filename, targetdir, git_config):
     targetpath = os.path.join(targetdir, filename)
 
     # compose 'git clone' command, and run it
-    clone_cmd = ['git', 'clone']
+    if extra_config_params:
+        git_cmd = 'git ' + ' '.join(['-c %s' % param for param in extra_config_params])
+    else:
+        git_cmd = 'git'
+    clone_cmd = [git_cmd, 'clone']
 
     if not keep_git_dir and not commit:
         # Speed up cloning by only fetching the most recent commit, not the whole history
@@ -2660,6 +2710,8 @@ def get_source_tarball_from_git(filename, targetdir, git_config):
         clone_cmd.extend(['--branch', tag])
         if recursive:
             clone_cmd.append('--recursive')
+        if recurse_submodules:
+            clone_cmd.extend(["--recurse-submodules='%s'" % pat for pat in recurse_submodules])
     else:
         # checkout is done separately below for specific commits
         clone_cmd.append('--no-checkout')
@@ -2667,7 +2719,7 @@ def get_source_tarball_from_git(filename, targetdir, git_config):
     clone_cmd.append('%s/%s.git' % (url, repo_name))
 
     if clone_into:
-        clone_cmd.append('%s' % clone_into)
+        clone_cmd.append(clone_into)
 
     tmpdir = tempfile.mkdtemp()
     cwd = change_dir(tmpdir)
@@ -2679,16 +2731,21 @@ def get_source_tarball_from_git(filename, targetdir, git_config):
 
     # if a specific commit is asked for, check it out
     if commit:
-        checkout_cmd = ['git', 'checkout', commit]
-        if recursive:
-            checkout_cmd.extend(['&&', 'git', 'submodule', 'update', '--init', '--recursive'])
+        checkout_cmd = [git_cmd, 'checkout', commit]
+
+        if recursive or recurse_submodules:
+            checkout_cmd.extend(['&&', git_cmd, 'submodule', 'update', '--init'])
+            if recursive:
+                checkout_cmd.append('--recursive')
+            if recurse_submodules:
+                checkout_cmd.extend(["--recurse-submodules='%s'" % pat for pat in recurse_submodules])
 
         run.run_cmd(' '.join(checkout_cmd), log_all=True, simple=True, regexp=False, path=repo_name)
 
     elif not build_option('extended_dry_run'):
         # If we wanted to get a tag make sure we actually got a tag and not a branch with the same name
         # This doesn't make sense in dry-run mode as we don't have anything to check
-        cmd = 'git describe --exact-match --tags HEAD'
+        cmd = '%s describe --exact-match --tags HEAD' % git_cmd
         # Note: Disable logging to also disable the error handling in run_cmd
         (out, ec) = run.run_cmd(cmd, log_ok=False, log_all=False, regexp=False, path=repo_name)
         if ec != 0 or tag not in out.splitlines():
@@ -2701,13 +2758,16 @@ def get_source_tarball_from_git(filename, targetdir, git_config):
                 # make the repo unshallow first;
                 # this is equivalent with 'git fetch -unshallow' in Git 1.8.3+
                 # (first fetch seems to do nothing, unclear why)
-                cmds.append('git fetch --depth=2147483647 && git fetch --depth=2147483647')
+                cmds.append('%s fetch --depth=2147483647 && git fetch --depth=2147483647' % git_cmd)
 
-            cmds.append('git checkout refs/tags/' + tag)
+            cmds.append('%s checkout refs/tags/' % git_cmd + tag)
             # Clean all untracked files, e.g. from left-over submodules
-            cmds.append('git clean --force -d -x')
+            cmds.append('%s clean --force -d -x' % git_cmd)
             if recursive:
-                cmds.append('git submodule update --init --recursive')
+                cmds.append('%s submodule update --init --recursive' % git_cmd)
+            elif recurse_submodules:
+                cmds.append('%s submodule update --init ' % git_cmd)
+                cmds[-1] += ' '.join(["--recurse-submodules='%s'" % pat for pat in recurse_submodules])
             for cmd in cmds:
                 run.run_cmd(cmd, log_all=True, simple=True, regexp=False, path=repo_name)
 
@@ -2805,7 +2865,7 @@ def install_fake_vsc():
 def get_easyblock_class_name(path):
     """Make sure file is an easyblock and get easyblock class name"""
     fn = os.path.basename(path).split('.')[0]
-    mod = imp.load_source(fn, path)
+    mod = load_source(fn, path)
     clsmembers = inspect.getmembers(mod, inspect.isclass)
     for cn, co in clsmembers:
         if co.__module__ == mod.__name__:

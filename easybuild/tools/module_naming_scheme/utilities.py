@@ -1,5 +1,5 @@
 ##
-# Copyright 2009-2023 Ghent University
+# Copyright 2009-2025 Ghent University
 #
 # This file is part of EasyBuild,
 # originally created by the HPC team of Ghent University (http://ugent.be/hpc/en),
@@ -64,16 +64,16 @@ def det_full_ec_version(ec):
 
     # prepend/append version prefix/suffix
     versionprefix = ec.get('versionprefix', '')
-    if not isinstance(versionprefix, string_type):
+    if versionprefix and not isinstance(versionprefix, string_type):
         raise EasyBuildError("versionprefix value should be a string, found '%s': %s (full spec: %s)",
                              type(versionprefix).__name__, versionprefix, ec)
 
     versionsuffix = ec.get('versionsuffix', '')
-    if not isinstance(versionsuffix, string_type):
+    if versionsuffix and not isinstance(versionsuffix, string_type):
         raise EasyBuildError("versionsuffix value should be a string, found '%s': %s (full spec: %s)",
                              type(versionsuffix).__name__, versionsuffix, ec)
 
-    ecver = ''.join([x for x in [versionprefix, ecver, versionsuffix] if x])
+    ecver = ''.join([x for x in [versionprefix or '', ecver, versionsuffix or ''] if x])
 
     return ecver
 
@@ -86,7 +86,7 @@ def avail_module_naming_schemes():
     import_available_modules('easybuild.tools.module_naming_scheme')
 
     # construct name-to-class dict of available module naming scheme
-    avail_mnss = dict([(x.__name__, x) for x in get_subclasses(ModuleNamingScheme)])
+    avail_mnss = {x.__name__: x for x in get_subclasses(ModuleNamingScheme)}
 
     return avail_mnss
 

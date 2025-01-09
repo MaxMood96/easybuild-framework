@@ -1,5 +1,5 @@
 ##
-# Copyright 2013-2023 Ghent University
+# Copyright 2013-2025 Ghent University
 #
 # This file is part of EasyBuild,
 # originally created by the HPC team of Ghent University (http://ugent.be/hpc/en),
@@ -325,7 +325,7 @@ def mocked_run_cmd(cmd, **kwargs):
     """Mocked version of run_cmd, with specified output for known commands."""
     known_cmds = {
         "gcc --version": "gcc (GCC) 5.1.1 20150618 (Red Hat 5.1.1-4)",
-        "ldd --version": "ldd (GNU libc) 2.12",
+        "ldd --version": "ldd (GNU libc) 2.12; ",
         "sysctl -n hw.cpufrequency_max": "2400000000",
         "sysctl -n hw.ncpu": '10',
         "sysctl -n hw.memsize": '8589934592',
@@ -366,17 +366,14 @@ class SystemToolsTest(EnhancedTestCase):
         self.orig_is_readable = st.is_readable
         self.orig_read_file = st.read_file
         self.orig_run_cmd = st.run_cmd
-        self.orig_platform_dist = st.platform.dist if hasattr(st.platform, 'dist') else None
+        self.orig_platform_dist = getattr(st.platform, 'dist', None)
         self.orig_platform_uname = st.platform.uname
         self.orig_get_tool_version = st.get_tool_version
         self.orig_sys_version_info = st.sys.version_info
         self.orig_HAVE_ARCHSPEC = st.HAVE_ARCHSPEC
         self.orig_HAVE_DISTRO = st.HAVE_DISTRO
         self.orig_ETC_OS_RELEASE = st.ETC_OS_RELEASE
-        if hasattr(st, 'archspec_cpu_host'):
-            self.orig_archspec_cpu_host = st.archspec_cpu_host
-        else:
-            self.orig_archspec_cpu_host = None
+        self.orig_archspec_cpu_host = getattr(st, 'archspec_cpu_host', None)
 
     def tearDown(self):
         """Cleanup after systemtools test."""
@@ -791,6 +788,13 @@ class SystemToolsTest(EnhancedTestCase):
         st.run_cmd = mocked_run_cmd
         self.assertEqual(get_glibc_version(), '2.12')
 
+    def test_glibc_version_linux_gentoo(self):
+        """Test getting glibc version (mocked for Linux)."""
+        st.get_os_type = lambda: st.LINUX
+        ldd_version_out = "ldd (Gentoo 2.37-r3 (patchset 5)) 2.37; Copyright (C) 2023 Free Software Foundation, Inc."
+        st.get_tool_version = lambda _: ldd_version_out
+        self.assertEqual(get_glibc_version(), '2.37')
+
     def test_glibc_version_linux_musl_libc(self):
         """Test getting glibc version (mocked for Linux)."""
         st.get_os_type = lambda: st.LINUX
@@ -828,9 +832,9 @@ class SystemToolsTest(EnhancedTestCase):
     def test_det_parallelism_native(self):
         """Test det_parallelism function (native calls)."""
         self.assertTrue(det_parallelism() > 0)
-        # specified parallellism
+        # specified parallelism
         self.assertEqual(det_parallelism(par=5), 5)
-        # max parallellism caps
+        # max parallelism caps
         self.assertEqual(det_parallelism(maxpar=1), 1)
         self.assertEqual(det_parallelism(16, 1), 1)
         self.assertEqual(det_parallelism(par=5, maxpar=2), 2)

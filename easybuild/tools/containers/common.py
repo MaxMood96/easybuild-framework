@@ -1,5 +1,5 @@
 # #
-# Copyright 2009-2023 Ghent University
+# Copyright 2009-2025 Ghent University
 #
 # This file is part of EasyBuild,
 # originally created by the HPC team of Ghent University (http://ugent.be/hpc/en),
@@ -34,6 +34,7 @@ Authors:
 from easybuild.base import fancylogger
 from easybuild.tools.build_log import EasyBuildError
 from easybuild.tools.config import build_option
+from easybuild.tools.containers.apptainer import ApptainerContainer  # noqa
 from easybuild.tools.containers.docker import DockerContainer  # noqa
 from easybuild.tools.containers.singularity import SingularityContainer  # noqa
 

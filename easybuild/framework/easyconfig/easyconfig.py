@@ -1,5 +1,5 @@
 # #
-# Copyright 2009-2023 Ghent University
+# Copyright 2009-2025 Ghent University
 #
 # This file is part of EasyBuild,
 # originally created by the HPC team of Ghent University (http://ugent.be/hpc/en),
@@ -46,6 +46,7 @@ import difflib
 import functools
 import os
 import re
+from collections import OrderedDict
 from contextlib import contextmanager
 
 import easybuild.tools.filetools as filetools
@@ -73,8 +74,8 @@ from easybuild.tools.hooks import PARSE, load_hooks, run_hook
 from easybuild.tools.module_naming_scheme.mns import DEVEL_MODULE_SUFFIX
 from easybuild.tools.module_naming_scheme.utilities import avail_module_naming_schemes, det_full_ec_version
 from easybuild.tools.module_naming_scheme.utilities import det_hidden_modname, is_valid_module_name
-from easybuild.tools.modules import modules_tool
-from easybuild.tools.py2vs3 import OrderedDict, create_base_metaclass, string_type
+from easybuild.tools.modules import modules_tool, NoModulesTool
+from easybuild.tools.py2vs3 import create_base_metaclass, string_type
 from easybuild.tools.systemtools import check_os_dependency, pick_dep_version
 from easybuild.tools.toolchain.toolchain import SYSTEM_TOOLCHAIN_NAME, is_system_toolchain
 from easybuild.tools.toolchain.toolchain import TOOLCHAIN_CAPABILITIES, TOOLCHAIN_CAPABILITY_CUDA
@@ -303,7 +304,7 @@ def get_toolchain_hierarchy(parent_toolchain, incl_capabilities=False):
     """
     # obtain list of all possible subtoolchains
     _, all_tc_classes = search_toolchain('')
-    subtoolchains = dict((tc_class.NAME, getattr(tc_class, 'SUBTOOLCHAIN', None)) for tc_class in all_tc_classes)
+    subtoolchains = {tc_class.NAME: getattr(tc_class, 'SUBTOOLCHAIN', None) for tc_class in all_tc_classes}
     optional_toolchains = set(tc_class.NAME for tc_class in all_tc_classes if getattr(tc_class, 'OPTIONAL', False))
     composite_toolchains = set(tc_class.NAME for tc_class in all_tc_classes if len(tc_class.__bases__) > 1)
 
@@ -455,6 +456,8 @@ class EasyConfig(object):
             self.path = path
             self.rawtxt = read_file(path)
             self.log.debug("Raw contents from supplied easyconfig file %s: %s", path, self.rawtxt)
+            if not self.rawtxt.strip():
+                raise EasyBuildError('Easyconfig file is empty')
         else:
             self.rawtxt = rawtxt
             self.log.debug("Supplied raw easyconfig contents: %s" % self.rawtxt)
@@ -985,7 +988,7 @@ class EasyConfig(object):
         faulty_deps = []
 
         # obtain reference to original lists, so their elements can be changed in place
-        deps = dict([(key, self.get_ref(key)) for key in ['dependencies', 'builddependencies', 'hiddendependencies']])
+        deps = {key: self.get_ref(key) for key in ('dependencies', 'builddependencies', 'hiddendependencies')}
 
         if 'builddependencies' in self.iterate_options:
             deplists = copy.deepcopy(deps['builddependencies'])
@@ -1139,6 +1142,15 @@ class EasyConfig(object):
 
         return retained_deps
 
+    def dependency_names(self, build_only=False):
+        """
+        Return a set of names of all (direct) dependencies after filtering.
+        Iterable builddependencies are flattened when not iterating.
+
+        :param build_only: only return build dependencies, discard others
+        """
+        return {dep['name'] for dep in self.dependencies(build_only=build_only) if dep['name']}
+
     def builddependencies(self):
         """
         Return a flat list of the parsed build dependencies
@@ -1220,11 +1232,11 @@ class EasyConfig(object):
         # templated values should be dumped unresolved
         with self.disable_templating():
             # build dict of default values
-            default_values = dict([(key, DEFAULT_CONFIG[key][0]) for key in DEFAULT_CONFIG])
-            default_values.update(dict([(key, self.extra_options[key][0]) for key in self.extra_options]))
+            default_values = {key: DEFAULT_CONFIG[key][0] for key in DEFAULT_CONFIG}
+            default_values.update({key: self.extra_options[key][0] for key in self.extra_options})
 
             self.generate_template_values()
-            templ_const = dict([(quote_py_str(const[1]), const[0]) for const in TEMPLATE_CONSTANTS])
+            templ_const = {quote_py_str(const[1]): const[0] for const in TEMPLATE_CONSTANTS}
 
             # create reverse map of templates, to inject template values where possible
             # longer template values are considered first, shorter template keys get preference over longer ones
@@ -1306,6 +1318,9 @@ class EasyConfig(object):
         :param existing_metadata: already available metadata for this external module (if any)
         """
         res = {}
+        if isinstance(self.modules_tool, NoModulesTool):
+            self.log.debug('Ignoring request for external module data for %s as no modules tool is active', mod_name)
+            return res
 
         if existing_metadata is None:
             existing_metadata = {}
@@ -1508,7 +1523,6 @@ class EasyConfig(object):
         # convert tuple to string otherwise python might complain about the formatting
         self.log.debug("Parsing %s as a dependency" % str(dep))
 
-        attr = ['name', 'version', 'versionsuffix', 'toolchain']
         dependency = {
             # full/short module names
             'full_mod_name': None,
@@ -1564,6 +1578,7 @@ class EasyConfig(object):
                     raise EasyBuildError("Incorrect external dependency specification: %s", dep)
             else:
                 # non-external dependency: tuple (or list) that specifies name/version(/versionsuffix(/toolchain))
+                attr = ('name', 'version', 'versionsuffix', 'toolchain')
                 dependency.update(dict(zip(attr, dep)))
 
         else:
@@ -1740,6 +1755,12 @@ class EasyConfig(object):
             if self.template_values[key] is None:
                 del self.template_values[key]
 
+    def resolve_template(self, value):
+        """Resolve all templates in the given value using this easyconfig"""
+        if not self.template_values:
+            self.generate_template_values()
+        return resolve_template(value, self.template_values)
+
     @handle_deprecated_or_replaced_easyconfig_parameters
     def __contains__(self, key):
         """Check whether easyconfig parameter is defined"""
@@ -1755,9 +1776,7 @@ class EasyConfig(object):
             raise EasyBuildError("Use of unknown easyconfig parameter '%s' when getting parameter value", key)
 
         if self.enable_templating:
-            if self.template_values is None or len(self.template_values) == 0:
-                self.generate_template_values()
-            value = resolve_template(value, self.template_values)
+            value = self.resolve_template(value)
 
         return value
 
@@ -1833,9 +1852,7 @@ class EasyConfig(object):
         for key, tup in self._config.items():
             value = tup[0]
             if self.enable_templating:
-                if not self.template_values:
-                    self.generate_template_values()
-                value = resolve_template(value, self.template_values)
+                value = self.resolve_template(value)
             res[key] = value
         return res
 
@@ -1897,7 +1914,9 @@ def get_easyblock_class(easyblock, name=None, error_on_failed_import=True, error
         else:
             # if no easyblock specified, try to find if one exists
             if name is None:
-                name = "UNKNOWN"
+                if error_on_missing_easyblock:
+                    raise EasyBuildError("No easyblock found as neither name nor easyblock were specified")
+                return None
             # The following is a generic way to calculate unique class names for any funny software title
             class_name = encode_class_name(name)
             # modulepath will be the namespace + encoded modulename (from the classname)
@@ -2014,12 +2033,14 @@ def resolve_template(value, tmpl_dict):
         # '%(name)s' -> '%(name)s'
         # '%%(name)s' -> '%%(name)s'
         if '%' in value:
+            orig_value = value
             value = re.sub(re.compile(r'(%)(?!%*\(\w+\)s)'), r'\1\1', value)
 
             try:
                 value = value % tmpl_dict
             except KeyError:
                 _log.warning("Unable to resolve template value %s with dict %s", value, tmpl_dict)
+                value = orig_value  # Undo "%"-escaping
     else:
         # this block deals with references to objects and returns other references
         # for reading this is ok, but for self['x'] = {}
@@ -2037,7 +2058,7 @@ def resolve_template(value, tmpl_dict):
         elif isinstance(value, tuple):
             value = tuple(resolve_template(list(value), tmpl_dict))
         elif isinstance(value, dict):
-            value = dict((resolve_template(k, tmpl_dict), resolve_template(v, tmpl_dict)) for k, v in value.items())
+            value = {resolve_template(k, tmpl_dict): resolve_template(v, tmpl_dict) for k, v in value.items()}
 
     return value
 
@@ -2244,7 +2265,7 @@ def verify_easyconfig_filename(path, specs, parsed_ec=None):
     for ec in ecs:
         found_fullver = det_full_ec_version(ec['ec'])
         if ec['ec']['name'] != specs['name'] or found_fullver != fullver:
-            subspec = dict((key, specs[key]) for key in ['name', 'toolchain', 'version', 'versionsuffix'])
+            subspec = {key: specs[key] for key in ('name', 'toolchain', 'version', 'versionsuffix')}
             error_msg = "Contents of %s does not match with filename" % path
             error_msg += "; expected filename based on contents: %s-%s.eb" % (ec['ec']['name'], found_fullver)
             error_msg += "; expected (relevant) parameters based on filename %s: %s" % (os.path.basename(path), subspec)

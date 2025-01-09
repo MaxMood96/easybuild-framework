@@ -4,6 +4,266 @@ For more detailed information, please see the git log.
 These release notes can also be consulted at https://easybuild.readthedocs.io/en/latest/Release_notes.html.
 
 
+v4.9.4 (22 September 2024)
+--------------------------
+
+update/bugfix release
+
+- various enhancements, including:
+  - set $LMOD_TERSE_DECORATIONS to 'no' to avoid additional info in output produced by 'ml --terse avail' (#4648)
+- various bug fixes, including:
+  - implement workaround for permission error when copying read-only files that have extended attributes set and using Python 3.6 (#4642)
+  - take into account alternate sysroot for /bin/bash used by run_cmd (#4646)
+
+
+v4.9.3 (14 September 2024)
+--------------------------
+
+update/bugfix release
+
+- various enhancements, including:
+  - add support for `--extra-source-urls` to fetch sources from additional URLs (#4079)
+  - add definition for gmpflf toolchain (#4566, #4571)
+  - reuse pre-computed checksums (#4569)
+  - add `cuda_cc_space_sep` variant that does not have periods (#4583)
+  - add `--skip-sanity-check` option (#4590)
+  - add `GNU_FTP_SOURCE` template constant (#4597)
+  - improve error messages for empty easyconfigs (#4603)
+  - improve help string for `--dep-graph` (#4610)
+  - only call `_sanity_check_step_extensions` if `--skip-extensions` is not set (#4620)
+  - add support for `--software-commit` and an associated template `%(software_commit)s` (#4628)
+- various bug fixes, including:
+  - correctly evaluate result for `--dep-graph` (#4554)
+  - fix fetch progress bar showing to many files (#4568)
+  - resolve internal for imkl>=2021 version subdir via "latest" symlink (#4570)
+  - fix typo in message about including an easyblock from a commit (#4575)
+  - don't use special flags for `strict`, `precise`, `loose`, `veryloose` toolchain options on RISC-V (#4576)
+  - fix help text for `cuda_compute_capabilities` template (#4589)
+  - fix help message for `--http-headers-fields-urlpat` configuration option (#4594)
+  - fix `test_compiler_cache` in case `gcc` is available multiple times (#4599)
+  - handle post-install patches in check_checksums_for (#4605)
+  - fix `copy_file` with a folder as the target (#4609)
+  - allow for case where `homepage = None` when generating the docs (#4626)
+  - fix test_github_det_commit_status by using more recent commits (#4636)
+- other changes:
+  - clean up code that was only there to support Python 2.6 + avoid syntax warnings when parsing py2vs3/py.p2 with Python 3.x (#3788)
+  - use Intel's oneAPI Fortran compiler by default for version 2024.0.0 and newer (`oneapi_fortran` toolchain option set to `True`) (#4567)
+  - allow using Node 16 actions in CI (#4574)
+  - remove a superflous check in `EasyBlock.run_all_steps` (#4623)
+  - remove trailing dots from backup message produced by --inject-checksums (#4632)
+
+
+v4.9.2 (12 June 2024)
+---------------------
+
+update/bugfix release
+
+- various enhancements, including:
+  - improve behavior when using extension which has 'nosource' enabled (#4506)
+  - enhance 'get_software_libdir' to return 'lib' or 'lib64' if only one of them contains library files (#4513)
+  - implement versions checks to avoid mixing major versions across the EasyBuild components (#4520, #4553)
+  - add support for easyconfig parameter 'module_only' (#4537)
+- various bug fixes, including:
+  - fix typo in patch_step logging (#4505)
+  - consider both 'easybuild-framework*.tar.gz' and 'easybuild_framework*.tar.gz' in CI workflows (#4507)
+  - don't delete existing environment module files when using '--dump-env-script' with '--force' or '--rebuild' (#4512)
+  - fix resolved (template) values in case of failure  (#4532)
+  - also consider '$CRAY_PE_LIBSCI_PREFIX_DIR' to determine installation prefix for cray-libsci (#4551)
+  - symlink downloaded repo at specified commit when using '--from-commit' so easyconfigs for dependencies are found (#4552)
+- other changes:
+  - code cleanup in 'easyblock.py' (#4519)
+  - stop running unit tests on Python 3.5 (#4530)
+
+
+v4.9.1 (5 April 2024)
+---------------------
+
+update/bugfix release
+
+- various enhancements, including:
+  - make `is_rpath_wrapper` faster by only checking file contents if file is not located in subdirectory of RPATH wrapper subdirectory (#4406)
+  - add terse support to `--missing-modules` (#4407)
+  - adapt version pattern for EnvironmentModules to allow using development version (#4416)
+  - use `--all` option with EnvironmentModules v4.6+ to get available hidden modules (#4417)
+  - add support for appending to path environment variables via `modextrapaths_append` + add corresponding `allow_append_abs_path` (#4436)
+  - improve output produced by `--check-github` (#4437)
+  - add script for updating local git repos with `develop` branch (#4438)
+  - show error when multiple PR options are passed (#4440)
+  - improve `findPythonDeps` script to recognize non-canonical package names (#4445)
+  - add support for `--from-commit` and `--include-easyblocks-from-commit` (#4468)
+  - improve logging & handling of (empty) `--optarch` values (#4481)
+  - add `--short` option to `findUpdatedEcs` script (#4488)
+  - add generic GCC and Clang compiler flags for RISC-V (#4489)
+- various bug fixes, including:
+  - clean up log file of `EasyBlock` instance in `check_sha256_checksums` (#4452)
+  - fix description of `backup-modules` configuration option (#4456)
+  - replace `'` with `"` for `printf` in CI workflow for running test suite to have bash replace a variable  (#4461)
+  - use `cp -dR` instead of `cp -a` for shell script "extraction" (#4465)
+  - fix link to documentation in `close_pr` message (#4466)
+  - fix `test_github_merge_pr` by using more recent easyconfigs PR (#4470)
+  - add workaround for 404 error when installing packages in CI workflow for testing Apptainer integration (#4472)
+- other changes:
+  - clean up & speed up environment checks (#4409)
+  - use more performant and concise dict construction by using dict comprehensions (#4410)
+  - remove superflous string formatting (#4411)
+  - clean up uses of `getattr` and `hasattr` (#4412)
+  - update copyright lines to 2024 (#4494)
+
+
+v4.9.0 (30 December 2023)
+-------------------------
+
+feature release
+
+- various enhancements, including:
+  - allow tweaking of easyconfigs from different toolchains (#3669)
+  - add support for `--list-software --output-format=json` (#4152)
+  - add `--module-cache-suffix` configuration setting to allow multiple (Lmod) caches (#4403)
+- various bug fixes, including:
+  - deduplicate warnings & errors found in logs and add initial newline + tab in output (#4361)
+  - fix support for Environment Modules as modules tool to pass unit tests with v4.2+ (#4369)
+  - adapt module function check for Environment Modules v4+ (#4371)
+  - only install GitHub token when testing with Lmod 8.x + Python 3.6 or 3.9 (#4375)
+  - use `-qopenmp` instead of `-fiopenmp` for OpenMP in Intel compilers (#4377)
+  - fix `LIBBLAS_MT` for FlexiBLAS, ensure `-lpthread` is included (#4379)
+  - relax major version match regex in `find_related_easyconfigs` using for `--review-pr` (#4385)
+  - eliminate duplicate multideps from generated module files (#4386)
+  - resolve templated values in extension names in `_make_extension_list` (#4392)
+  - use source toolchain version when passing only `--try-toolchain` (#4395)
+  - fix writing spider cache for Lmod >= 8.7.12 (#4402)
+  - fix `--inject-checksums` when extension specifies patch file in tuple format (#4405)
+  - fix `LooseVersion` when running with Python 2.7 (#4408)
+  - use more recent easyblocks PR in `test_github_merge_pr` (#4414)
+- other changes:
+  - extend test that checks build environment to recent `foss/2023a` toolchain (#4391)
+
+
+v4.8.2 (29 October 2023)
+------------------------
+
+update/bugfix release
+
+- various enhancements, including:
+  - add support for `%(sysroot)s` template value (#4359)
+  - add `dependency_names` method to `EasyConfig` class to get set of names of (direct) dependencies (#4360)
+- various bug fixes, including:
+  - add CI workflow to run unit tests with Python 2 (again) (#4333)
+  - fix typo in help message for `--silence-hook-trigger` (#4343)
+  - include major version (`*majver`) templates in auto-generated documentation (#4347)
+  - reset `tempfile.tempdir` to `None` to avoid that tmpdir path gets progressively deeper with each easystack item (#4350)
+  - fix `findPythonDeps.py` script when called with an (absolute or relative) path to an easyconfig instead of a filename (#4365)
+  - fix broken test for `reasons_for_closing`, which fails because commit status of easyconfigs PR is no longer available (#4366)
+- other changes:
+  - reduce number of CI jobs by testing for Lua and Tcl module syntax in a single CI job (#4192)
+
+
+v4.8.1 (11 September 2023)
+--------------------------
+
+update/bugfix release
+
+- various enhancements, including:
+  - add end-to-end test for running EasyBuild in different Linux distros using containers (#3968)
+  - suggest default title in `--review-pr` (#4287)
+  - add `build_and_install_loop` hooks to run before and after the install loop for individual easyconfigs (#4304)
+  - implement support for `cancel_hook` and `fail_hook` (#4315, #4325)
+  - add postiter hook to the list of steps so the corresponding hook can be used (#4316)
+  - add `run_shell_cmd` hook (#4323)
+  - add `build_info_msg` easyconfig parameter to print message during installation of an easyconfig (#4324)
+  - add `--silence-hook-trigger` configuration option to supress printing of debug message every time a hook is triggered (#4329)
+  - add support for using fine grained Github tokens (#4332)
+  - add definitions for ifbf and iofbf toolchain (#4337)
+  - add support for submodule filtering and specifying extra Git configuration in `git_config` (#4338, #4339)
+- various bug fixes, including:
+  - improve error when checksum dict has no entry for a file (#4150)
+  - avoid error being logged when `checksums.json` is not found (#4261)
+  - don't fail in `mkdir` if path gets created while processing it (#4300, #4328)
+  - ignore request for external module (meta)data when no modules tool is active (#4308)
+  - use sys.executable to obtain path to `python` command in tests, rather than assuming that `python` command is available in `$PATH` (#4309)
+  - fix `test_add_and_remove_module_path` by replacing string comparison of paths by checking whether they point to the same path (since symlinks may cause trouble) (#4312)
+  - enhance `Toolchain.get_flag` to handle lists (#4319)
+  - only add extensions in module file if there are extensions (#4331)
+
+
+v4.8.0 (7 July 2023)
+--------------------
+
+feature release
+
+- various enhancements, including:
+  - use version suffixes in PR title instead of Python versions when using --new-pr (#4253 + #4286)
+  - add script to find updated ECs for installed module (#4271)
+- various bug fixes, including:
+  - fix regex for extracting glibc version from output of '`ldd --version`' in Gentoo Linux (#4290)
+  - allow versionsuffix to be set to None in `det_full_ec_version` (#4292)
+- other changes:
+  - stop running tests with Python 2.7 since it is no longer supported in GitHub Action (#4267)
+  - replace imp.load_source by leveraging importlib.util.module_from_spec when using Python 3 (#4280)
+
+
+v4.7.2 (27 May 2023)
+--------------------
+
+update/bugfix release
+
+- various enhancements, including:
+  - extend (experimental) support for generating container images with Apptainer (#3975)
+  - add default download timeout (#4226)
+  - make the RPATH section check with `readelf -d` in sanity check optional  (#4249)
+- various bug fixes, including:
+  - add `make_extension_string` and `_make_extension_list` methods to `EasyBlock` class, so easyblocks can customize them (#3697)
+  - fix typo in condition guarding installation of GitHub token in CI workflow to run unit tests + fix broken tests related to GitHub integration features (#4216)
+  - fix --check-github as gist url now includes username (#4231)
+  - switch to Ubuntu 22.04 in GitHub Actions workflow to run container tests (#4238)
+  - use "/usr/bin/env python" in test_run_cmd_script (#4241)
+- other changes:
+  - print potential errors after running a command only once (#4065)
+  - change github_* template descriptions to be somewhat clearer (#4251)
+  - remove workflow to test bootstrap script (#4255)
+
+
+v4.7.1 (March 20th 2023)
+------------------------
+
+update/bugfix release
+
+- various enhancements, including:
+  - add option to make sanity_check_paths arch dependent (#3845)
+  - add support for %(start_dir)s easyconfig template (#4073)
+  - add Ubuntu friendly package naming scheme EasyBuildDebFriendlyPNS (#4115)
+  - allow to directly import constants from easybuild.framework.easyconfig.constants (#4144)
+  - accept single source as dict and single checksum in check_checksums_for (#4180)
+  - add pre/post extension hook that is triggered before/after individual extension installations (#4193)
+  - enforce absolute paths as start dir of extensions (#4196)
+  - print warning when non-existing `start_dir` is specified for extension (#4201)
+  - add support to silence deprecation warning for easyconfigs and toolchains (#4207)
+  - skip directories when fixing shebangs (#4209)
+  - add support for 'modunloadmsg' easyconfig parameter (#4223)
+- various bug fixes, including:
+  - fix use of `locate` in `check_os_dependency` (#4166)
+  - add VERSION to easybuild.easyblocks namespace in test sandbox (#4171)
+  - also apply filter to asyncprocess test subsuite (#4172)
+  - don't use deprecated SafeConfigParser when running with Python 3.x (#4173)
+  - update CI workflows to run 'apt-get update' if installation of packages via 'apt-get install' failed, likely due to stale apt cache (#4176)
+  - fixes for findPythonDeps script (#4179)
+  - check type of versionsuffix value in det_full_ec_version, and raise useful error message if it's not a string (#4184)
+  - avoid GC3Pie deprecation warning (#4185)
+  - correctly restore sys.path in tests (#4186)
+  - suppress output of --skip-test-step test (#4187)
+  - fix flaky test_search_file due to accidental matches for `.*C++` search pattern (#4190)
+  - silence distutils deprecation warnings (#4204)
+  - improve handling of start_dir and add tests for cases where either ext_dir or initial start_dir or both are unset or None (#4206)
+  - restore initial environment before processing each easystack item (#4213)
+  - make test_help_long work on small terminals (#4218)
+- other changes:
+  - use better test assertions by replacing use of assertFalse/assertTrue (#4170, #4205)
+  - remove Travis CI configuration file (#4174)
+  - filter out deprecation warnings for platform.dist in get_os_version and platform.linux_distribution in get_os_name (#4175)
+  - only give read permissions in GitHub Actions workflows (#4182)
+  - fix website/docs links in README (#4199)
+  - only print "default: " for configuration option of strlist type if default is not empty (#4220)
+
+
 v4.7.0 (January 9th 2023)
 -------------------------
 

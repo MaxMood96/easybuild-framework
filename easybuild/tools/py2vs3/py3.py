@@ -1,5 +1,5 @@
 #
-# Copyright 2019-2023 Ghent University
+# Copyright 2019-2025 Ghent University
 #
 # This file is part of EasyBuild,
 # originally created by the HPC team of Ghent University (http://ugent.be/hpc/en),
@@ -40,9 +40,11 @@ import urllib.request as std_urllib  # noqa
 from collections import OrderedDict  # noqa
 from collections.abc import Mapping  # noqa
 from functools import cmp_to_key
+from importlib.util import spec_from_file_location, module_from_spec
 from html.parser import HTMLParser  # noqa
 from itertools import zip_longest
 from io import StringIO  # noqa
+from os import makedirs  # noqa
 from string import ascii_letters, ascii_lowercase  # noqa
 from urllib.request import HTTPError, HTTPSHandler, Request, URLError, build_opener, urlopen  # noqa
 from urllib.parse import urlencode  # noqa
@@ -61,6 +63,14 @@ except ImportError:
 
 # string type that can be used in 'isinstance' calls
 string_type = str
+
+
+def load_source(filename, path):
+    """Load file as Python module"""
+    spec = spec_from_file_location(filename, path)
+    module = module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
 
 
 def json_loads(body):
