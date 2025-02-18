@@ -37,3 +37,4 @@ cryptography; python_version >= '3.5' and python_version < '3.11'
 
 # rich is only supported for Python 3.6+
 rich; python_version >= '3.6'
+setuptools>=70.0.0 # not directly required, pinned by Snyk to avoid a vulnerability
