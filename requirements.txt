@@ -22,7 +22,7 @@ rich<13; python_version < '3.7'
 rich
 
 # Similar for dependencies of other packages
-cryptography<37; python_version < '3.7'
+cryptography<46.0.5; python_version < '3.7'
 PyNaCl<1.5; python_version < '3.7'
 
 archspec
