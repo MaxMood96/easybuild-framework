@@ -341,7 +341,7 @@ class Extension:
 
         exts_filer_cmds = construct_exts_filter_cmds(exts_filter, self)
         # allow skipping of sanity check by setting module name to False
-        if exts_filer_cmds is None:
+        if not exts_filer_cmds:
             self.log.info("modulename set to False for '%s' extension, so skipping sanity check", self.name)
         else:
             fail_msgs = []
