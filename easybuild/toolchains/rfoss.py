@@ -81,7 +81,7 @@ class RFoss(Rompi, FlexiBLAS, ScaLAPACK, Fftw):
     def is_deprecated(self):
         """Return whether or not this toolchain is deprecated."""
 
-        # lfoss toolchains older than 2023b should not exist (need GCC >= 13)
+        # rfoss toolchains older than 2023b should not exist (need GCC >= 13)
         if self.looseversion < LooseVersion('2023'):
             deprecated = True
         else:
