@@ -144,7 +144,8 @@ class LLVMCompilers(Compiler):
     COMPILER_OPTIMAL_ARCHITECTURE_OPTION = {
         **(Compiler.COMPILER_OPTIMAL_ARCHITECTURE_OPTION or {}),
         # -mcpu=native is recommended way to specify feature set for aarch64, see:
-        # https://github.com/easybuilders/easybuild-framework/pull/5139#issuecomment-3961654073
+        # https://github.com/easybuilders/easybuild-framework/pull/5139#issuecomment-3961654073 and
+        # https://developer.arm.com/community/arm-community-blogs/b/tools-software-ides-blog/posts/compiler-flags-across-architectures-march-mtune-and-mcpu
         (systemtools.AARCH64, systemtools.ARM): '-mcpu=native',
         (systemtools.POWER, systemtools.POWER): '-mcpu=native',  # no support for march=native on POWER
         (systemtools.POWER, systemtools.POWER_LE): '-mcpu=native',  # no support for march=native on POWER
