@@ -677,13 +677,19 @@ def init_build_options(build_options=None, cmdline_options=None):
 def build_option(key, **kwargs):
     """Obtain value specified build option."""
 
-    build_options = BuildOptions()
-    if key in build_options:
-        return build_options[key]
-    elif 'default' in kwargs:
+    # return build option value if BuildOptions has been initialised and it's a known build option
+    if BuildOptions.__class__._instances:
+        build_options = BuildOptions()
+        if key in build_options:
+            return build_options[key]
+
+    # if above didn't return a value, return the specified default (if specified)
+    if 'default' in kwargs:
         return kwargs['default']
+
+    # if above didn't return a value, we give up
     else:
-        error_msg = "Undefined build option: '%s'. " % key
+        error_msg = f"Build options are not initialized yet, or undefined build option used: '%s'. "
         error_msg += "Make sure you have set up the EasyBuild configuration using set_up_configuration() "
         error_msg += "(from easybuild.tools.options) in case you're not using EasyBuild via the 'eb' CLI."
         raise EasyBuildError(error_msg, exit_code=EasyBuildExit.OPTION_ERROR)
@@ -845,12 +851,8 @@ def get_module_syntax():
 
 def get_output_style():
     """Return output style to use."""
-    try:
-        output_style = build_option('output_style')
-    except EasyBuildError:
-        # If BuildOptions was not initialized yet, fall back to default and reset singleton to force re-initialization
-        BuildOptions.__class__._instances.clear()
-        output_style = OUTPUT_STYLE_BASIC
+
+    output_style = build_option('output_style', default=OUTPUT_STYLE_BASIC)
 
     if output_style == OUTPUT_STYLE_AUTO:
         if HAVE_RICH:
