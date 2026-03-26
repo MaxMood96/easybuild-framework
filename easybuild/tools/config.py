@@ -689,7 +689,7 @@ def build_option(key, **kwargs):
 
     # if above didn't return a value, we give up
     else:
-        error_msg = "Build options are not initialized yet, or undefined build option used: '%s'. "
+        error_msg = f"Build options are not initialized yet, or undefined build option used: '{key}'. "
         error_msg += "Make sure you have set up the EasyBuild configuration using set_up_configuration() "
         error_msg += "(from easybuild.tools.options) in case you're not using EasyBuild via the 'eb' CLI."
         raise EasyBuildError(error_msg, exit_code=EasyBuildExit.OPTION_ERROR)
