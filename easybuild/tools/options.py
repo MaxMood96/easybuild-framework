@@ -244,14 +244,19 @@ class EasyBuildOptions(GeneralOption):
         self.default_robot_paths = get_paths_for(subdir=EASYCONFIGS_PKG_SUBDIR, robot_path=None) or []
 
         # set up constants to seed into config files parser, by section
+        user = "unknown_userid"
+        try:
+            user = pwd.getpwuid(os.geteuid()).pw_name
+        except KeyError:
+            # On some systems you may not have NSS on compute nodes, but the envvars will be available
+            user = os.getenv("USER") or os.getenv("LOGNAME") or str(os.geteuid())
         self.go_cfg_constants = {
             self.DEFAULTSECT: {
                 'DEFAULT_REPOSITORYPATH': (self.default_repositorypath[0],
                                            "Default easyconfigs repository path"),
                 'DEFAULT_ROBOT_PATHS': (os.pathsep.join(self.default_robot_paths),
                                         "List of default robot paths ('%s'-separated)" % os.pathsep),
-                'USER': (pwd.getpwuid(os.geteuid()).pw_name,
-                         "Current username, translated uid from password file"),
+                'USER': (user, "Current username, translated uid from password file (when available)"),
                 'HOME': (os.path.expanduser('~'),
                          "Current user's home directory, expanded '~'")
             }
