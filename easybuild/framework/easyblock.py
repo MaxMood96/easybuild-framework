@@ -516,15 +516,15 @@ class EasyBlock:
             filename = source
         elif isinstance(source, dict):
             # Making a copy to avoid modifying the object with pops
-            source = source.copy()
-            filename = source.pop('filename', None)
-            extract_cmd = source.pop('extract_cmd', None)
-            download_filename = source.pop('download_filename', None)
-            source_urls = source.pop('source_urls', None)
-            git_config = source.pop('git_config', None)
-            alt_location = source.pop('alt_location', None)
-            if source:
-                raise EasyBuildError("Found one or more unexpected keys in 'sources' specification: %s", source)
+            src = source.copy()
+            filename = src.pop('filename', None)
+            extract_cmd = src.pop('extract_cmd', None)
+            download_filename = src.pop('download_filename', None)
+            source_urls = src.pop('source_urls', None)
+            git_config = src.pop('git_config', None)
+            alt_location = src.pop('alt_location', None)
+            if src:
+                raise EasyBuildError("Found one or more unexpected keys in 'sources' specification: %s", src)
 
         elif isinstance(source, (list, tuple)) and len(source) == 2:
             self.log.deprecated("Using a 2-element list/tuple to specify sources is deprecated, "
@@ -532,6 +532,9 @@ class EasyBlock:
             filename, extract_cmd = source
         else:
             raise EasyBuildError("Unexpected source spec, not a string or dict: %s", source)
+
+        if filename is None:
+            raise EasyBuildError(f"Missing required 'filename' for source {source}")
 
         # check if the sources can be located
         force_download = build_option('force_download') in [FORCE_DOWNLOAD_ALL, FORCE_DOWNLOAD_SOURCES]
