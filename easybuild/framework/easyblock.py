@@ -518,6 +518,9 @@ class EasyBlock:
             # Making a copy to avoid modifying the object with pops
             src = source.copy()
             filename = src.pop('filename', None)
+            if filename is None:
+                raise EasyBuildError(f"Missing required 'filename' for source {source}")
+
             extract_cmd = src.pop('extract_cmd', None)
             download_filename = src.pop('download_filename', None)
             source_urls = src.pop('source_urls', None)
@@ -528,9 +531,6 @@ class EasyBlock:
 
         else:
             raise EasyBuildError("Unexpected source spec, not a string or dict: %s", source)
-
-        if filename is None:
-            raise EasyBuildError(f"Missing required 'filename' for source {source}")
 
         # check if the sources can be located
         force_download = build_option('force_download') in [FORCE_DOWNLOAD_ALL, FORCE_DOWNLOAD_SOURCES]
