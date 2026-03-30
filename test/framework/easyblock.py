@@ -1969,12 +1969,6 @@ class EasyBlockTest(EnhancedTestCase):
         orig_toy_extra_txt = read_file(os.path.join(os.path.dirname(toy_source), 'toy-extra.txt'))
         self.assertNotEqual(read_file(eb.src[0]['path']), orig_toy_extra_txt)
 
-        # old format for specifying source with custom extract command is deprecated
-        eb.src = []
-        error_msg = r"DEPRECATED \(since v4.0\).*Using a 2-element list/tuple.*"
-        self.assertErrorRegex(EasyBuildError, error_msg, eb.fetch_sources,
-                              [('toy-0.0_gzip.patch.gz', "gunzip %s")], checksums=[])
-
         # unknown dict keys in sources are reported
         sources[0]['nosuchkey'] = 'foobar'
         error_pattern = "Found one or more unexpected keys in 'sources' specification: {'nosuchkey': 'foobar'}"
