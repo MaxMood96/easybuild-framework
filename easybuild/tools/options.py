@@ -246,12 +246,13 @@ class EasyBuildOptions(GeneralOption):
         # set up constants to seed into config files parser, by section
         try:
             user = pwd.getpwuid(os.geteuid()).pw_name
-        except KeyError:
+        except Exception:
             # On some systems you may not have NSS on compute nodes, but the env vars should be available
             try:
                 user = os.getenv("USER") or os.getenv("LOGNAME") or str(os.geteuid())
             except Exception:
                 user = "unknown_userid"
+
         self.go_cfg_constants = {
             self.DEFAULTSECT: {
                 'DEFAULT_REPOSITORYPATH': (self.default_repositorypath[0],
