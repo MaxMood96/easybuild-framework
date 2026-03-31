@@ -250,7 +250,7 @@ class EasyBuildOptions(GeneralOption):
             # On some systems you may not have NSS on compute nodes, but the env vars should be available
             try:
                 user = os.getenv("USER") or os.getenv("LOGNAME") or str(os.geteuid())
-            except:
+            except Exception:
                 user = "unknown_userid"
         self.go_cfg_constants = {
             self.DEFAULTSECT: {
