@@ -686,6 +686,8 @@ def get_gpu_info(environment=None):
         _log.info("nvidia-smi not found. Cannot detect NVIDIA GPUs")
     else:
         try:
+            # example output fo this nvidia-smi command:
+            # NVIDIA A100-SXM4-80GB, 590.48.01
             cmd = "nvidia-smi --query-gpu=gpu_name,driver_version --format=csv,noheader"
             _log.debug("Trying to determine NVIDIA GPU info on Linux via cmd '%s'", cmd)
             res = run_shell_cmd(cmd, fail_on_error=False, in_dry_run=True, hidden=True, with_hooks=False,
@@ -736,26 +738,41 @@ def get_gpu_info(environment=None):
     if not which('rocm-smi', on_error=IGNORE):
         _log.info("rocm-smi not found. Cannot detect AMD GPUs")
     elif not amdgpu_checked:
+        amd_driver = UNKNOWN
         try:
+            # example of expected output for 'rocm-smi --showdriverversion --csv':
+            # name, value
+            # "Driver version", "6.16.6"
             cmd = "rocm-smi --showdriverversion --csv"
             _log.debug("Trying to determine AMD GPU driver on Linux via cmd '%s'", cmd)
             res = run_shell_cmd(cmd, fail_on_error=False, in_dry_run=True, hidden=True, with_hooks=False,
                                 output_file=False, stream_output=False, split_stderr=True, env=environment)
             if res.exit_code == EasyBuildExit.SUCCESS:
-                amd_driver = res.output.strip().split('\n')[1].split(',')[1]
+                # take into account that stdout may be empty or incomplete output
+                lines = res.output.strip().split('\n')
+                if len(lines) >= 2:
+                    parts = lines[1].split(',')
+                    if len(parts) >= 2:
+                        amd_driver = parts[1].strip().strip('"')
 
+            # example of expected output for 'rocm-smi --showproductname --csv':
+            # device,Card Series,Card Model,Card Vendor,Card SKU,Subsystem ID,Device Rev,Node ID,GUID,GFX Version
+            # card0,AMD Instinct MI250X/MI250,0x740c,Advanced Micro Devices Inc. [AMD/ATI],D65209,0x0b0c,0x01,8,13025,gfx90a  # noqa (ignore long line)
             cmd = "rocm-smi --showproductname --csv"
             _log.debug("Trying to determine AMD GPU info on Linux via cmd '%s'", cmd)
             res = run_shell_cmd(cmd, fail_on_error=False, in_dry_run=True, hidden=True, with_hooks=False,
                                 output_file=False, stream_output=False, split_stderr=True, env=environment)
             if res.exit_code == EasyBuildExit.SUCCESS:
-                for line in res.output.strip().split('\n')[1:]:
-                    amd_card_series = line.split(',')[1]
-                    amd_card_model = line.split(',')[2]
-                    amd_gpu = "%s (model: %s, driver: %s)" % (amd_card_series, amd_card_model, amd_driver)
-                    amd_gpu_info = gpu_info.setdefault('AMD', {})
-                    amd_gpu_info.setdefault(amd_gpu, 0)
-                    amd_gpu_info[amd_gpu] += 1
+                lines = res.output.strip().split('\n')
+                if len(lines) >= 2:
+                    for line in lines[1:]:
+                        parts = line.split(',')
+                        if len(parts) >= 3:
+                            amd_card_series, amd_card_model = parts[1], parts[2]
+                            amd_gpu = "%s (model: %s, driver: %s)" % (amd_card_series, amd_card_model, amd_driver)
+                            amd_gpu_info = gpu_info.setdefault('AMD', {})
+                            amd_gpu_info.setdefault(amd_gpu, 0)
+                            amd_gpu_info[amd_gpu] += 1
             else:
                 _log.debug("None zero exit (%s) from rocm-smi: %s", res.exit_code, res.output)
         except EasyBuildError as err:
