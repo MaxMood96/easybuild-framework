@@ -518,6 +518,9 @@ class EasyBlock:
             # Making a copy to avoid modifying the object with pops
             source = source.copy()
             filename = source.pop('filename', None)
+            if filename is None:
+                raise EasyBuildError(f"Missing required 'filename' for source {source}")
+
             extract_cmd = source.pop('extract_cmd', None)
             download_filename = source.pop('download_filename', None)
             source_urls = source.pop('source_urls', None)
