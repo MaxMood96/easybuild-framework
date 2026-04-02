@@ -517,9 +517,12 @@ class EasyBlock:
         elif isinstance(source, dict):
             # Making a copy to avoid modifying the object with pops
             source = source.copy()
-            filename = source.pop('filename', None)
-            if filename is None:
+            try:
+                filename = source.pop('filename')
+            except KeyError:
                 raise EasyBuildError(f"Missing required 'filename' for source {source}")
+            if not isinstance(filename, str) or filename == '':
+                raise EasyBuildError(f"Expected 'filename' to be a non-empty string, got {filename!r}")
 
             extract_cmd = source.pop('extract_cmd', None)
             download_filename = source.pop('download_filename', None)
