@@ -238,21 +238,17 @@ class ToyBuildTest(EnhancedTestCase):
     def run_test_toy_build_with_output(self, *args, **kwargs):
         """Run test_toy_build with specified arguments, catch stdout/stderr and return it."""
 
-        self.mock_stderr(True)
-        self.mock_stdout(True)
-        self._test_toy_build(*args, **kwargs)
-        stderr = self.get_stderr()
-        stdout = self.get_stdout()
-        self.mock_stderr(False)
-        self.mock_stdout(False)
+        with self.mocked_stdout_stderr():
+            self._test_toy_build(*args, **kwargs)
+            stderr = self.get_stderr()
+            stdout = self.get_stdout()
 
         return stdout, stderr
 
     def run_eb_main_capture_output(self, *args, **kwargs):
         """Run eb_main with specified arguments, capture stdout, and return output from eb_main"""
-        self.mock_stdout(True)
-        outtxt = self.eb_main(*args, **kwargs)
-        self.mock_stdout(False)
+        with self.mocked_stdout():
+            outtxt = self.eb_main(*args, **kwargs)
         return outtxt
 
     def test_toy_build(self):
@@ -839,9 +835,8 @@ class ToyBuildTest(EnhancedTestCase):
             else:
                 write_file(test_ec, TOY_EC_TXT + "\ngroup = %s\n" % str(group))
 
-            self.mock_stdout(True)
-            outtxt = self.eb_main(args, logfile=dummylogfn, do_build=True, raise_error=True, raise_systemexit=True)
-            self.mock_stdout(False)
+            with self.mocked_stdout():
+                outtxt = self.eb_main(args, logfile=dummylogfn, do_build=True, raise_error=True, raise_systemexit=True)
 
             if get_module_syntax() == 'Tcl':
                 module_version = LooseVersion(self.modtool.version)
@@ -2078,14 +2073,12 @@ class ToyBuildTest(EnhancedTestCase):
         toy_mod_backups = glob.glob(os.path.join(toy_mod_dir, '.' + toy_mod_fn + '.bak_*'))
         self.assertEqual(len(toy_mod_backups), 0)
 
-        self.mock_stderr(True)
-        self.mock_stdout(True)
-        # note: no need to specificy --backup-modules, enabled automatically under --module-only
-        self.eb_main(args + ['--module-only'], do_build=True, raise_error=True)
-        stderr = self.get_stderr()
-        stdout = self.get_stdout()
-        self.mock_stderr(False)
-        self.mock_stdout(False)
+        with self.mocked_stdout_stderr():
+            # note: no need to specificy --backup-modules, enabled automatically under --module-only
+            self.eb_main(args + ['--module-only'], do_build=True, raise_error=True)
+            stderr = self.get_stderr()
+            stdout = self.get_stdout()
+
         self.assertExists(toy_mod)
         toy_mod_backups = glob.glob(os.path.join(toy_mod_dir, '.' + toy_mod_fn + '.bak_*'))
         self.assertEqual(len(toy_mod_backups), 1)
@@ -2110,13 +2103,10 @@ class ToyBuildTest(EnhancedTestCase):
         # inject additional lines in module file to generate diff
         write_file(toy_mod, "some difference\n", append=True)
 
-        self.mock_stderr(True)
-        self.mock_stdout(True)
-        self.eb_main(args + ['--module-only'], do_build=True, raise_error=True, verbose=True)
-        stderr = self.get_stderr()
-        stdout = self.get_stdout()
-        self.mock_stderr(False)
-        self.mock_stdout(False)
+        with self.mocked_stdout_stderr():
+            self.eb_main(args + ['--module-only'], do_build=True, raise_error=True, verbose=True)
+            stderr = self.get_stderr()
+            stdout = self.get_stdout()
 
         toy_mod_backups = glob.glob(os.path.join(toy_mod_dir, '.' + toy_mod_fn + '.bak_*'))
         self.assertEqual(len(toy_mod_backups), 2)
@@ -2151,13 +2141,10 @@ class ToyBuildTest(EnhancedTestCase):
             self.assertEqual(len(hidden_toy_mod_backups), 0)
 
             # 2nd installation: backup module is created
-            self.mock_stderr(True)
-            self.mock_stdout(True)
-            self.eb_main(args, do_build=True, raise_error=True, verbose=True)
-            stderr = self.get_stderr()
-            stdout = self.get_stdout()
-            self.mock_stderr(False)
-            self.mock_stdout(False)
+            with self.mocked_stdout_stderr():
+                self.eb_main(args, do_build=True, raise_error=True, verbose=True)
+                stderr = self.get_stderr()
+                stdout = self.get_stdout()
 
             self.assertExists(toy_mod)
             lua_toy_mods = glob.glob(os.path.join(toy_mod_dir, '*.lua*'))
@@ -2191,13 +2178,10 @@ class ToyBuildTest(EnhancedTestCase):
             # tweak existing module file so we can verify diff of installed module with backup in stdout
             write_file(toy_mod, "some difference\n", append=True)
 
-            self.mock_stderr(True)
-            self.mock_stdout(True)
-            self.eb_main(args, do_build=True, raise_error=True, verbose=True)
-            stderr = self.get_stderr()
-            stdout = self.get_stdout()
-            self.mock_stderr(False)
-            self.mock_stdout(False)
+            with self.mocked_stdout_stderr():
+                self.eb_main(args, do_build=True, raise_error=True, verbose=True)
+                stderr = self.get_stderr()
+                stdout = self.get_stdout()
 
             if LooseVersion(lmod_version) < LooseVersion('7.0.0'):
                 backups_hidden += 1
@@ -2248,9 +2232,8 @@ class ToyBuildTest(EnhancedTestCase):
             self._test_toy_build(['--packagepath=%s' % pkgpath])
         self.assertNotExists(pkgpath, "%s is not created without use of --package" % pkgpath)
 
-        self.mock_stdout(True)
-        self._test_toy_build(extra_args=['--package', '--skip'], verify=False)
-        self.mock_stdout(False)
+        with self.mocked_stdout():
+            self._test_toy_build(extra_args=['--package', '--skip'], verify=False)
 
         toypkg = os.path.join(pkgpath, 'toy-0.0-eb-%s.1.rpm' % EASYBUILD_VERSION)
         self.assertExists(toypkg)
@@ -2291,9 +2274,9 @@ class ToyBuildTest(EnhancedTestCase):
         write_file(hooks_file, hooks_file_txt)
 
         # also use the easyblock with inheritance to fully test
-        self.mock_stdout(True)
-        self._test_toy_build(extra_args=['--minimal-toolchains', '--easyblock=EB_toytoy', '--hooks=%s' % hooks_file])
-        self.mock_stdout(False)
+        with self.mocked_stdout():
+            self._test_toy_build(extra_args=['--minimal-toolchains', '--easyblock=EB_toytoy',
+                                             '--hooks=%s' % hooks_file])
 
         # Check whether easyconfig is dumped to reprod/ subdir
         reprod_dir = os.path.join(self.test_installpath, 'software', 'toy', '0.0', 'easybuild', 'reprod')
@@ -2615,10 +2598,9 @@ class ToyBuildTest(EnhancedTestCase):
         ]
 
         # by default, sanity check commands & paths specified by easyblock are used
-        self.mock_stdout(True)
-        self._test_toy_build(ec_file=test_ec, extra_args=eb_args, verify=False, testing=False, raise_error=True)
-        stdout = self.get_stdout()
-        self.mock_stdout(False)
+        with self.mocked_stdout():
+            self._test_toy_build(ec_file=test_ec, extra_args=eb_args, verify=False, testing=False, raise_error=True)
+            stdout = self.get_stdout()
 
         pattern_lines = [
             r"Sanity check paths - file.*",
@@ -2648,10 +2630,9 @@ class ToyBuildTest(EnhancedTestCase):
         ])
         write_file(test_ec, test_ec_txt)
 
-        self.mock_stdout(True)
-        self._test_toy_build(ec_file=test_ec, extra_args=eb_args, verify=False, testing=False, raise_error=True)
-        stdout = self.get_stdout()
-        self.mock_stdout(False)
+        with self.mocked_stdout():
+            self._test_toy_build(ec_file=test_ec, extra_args=eb_args, verify=False, testing=False, raise_error=True)
+            stdout = self.get_stdout()
 
         pattern_lines = [
             r"Sanity check paths - file.*",
@@ -2672,10 +2653,9 @@ class ToyBuildTest(EnhancedTestCase):
         test_ec_txt = test_ec_txt + '\nenhance_sanity_check = True'
         write_file(test_ec, test_ec_txt)
 
-        self.mock_stdout(True)
-        self._test_toy_build(ec_file=test_ec, extra_args=eb_args, verify=False, testing=False, raise_error=True)
-        stdout = self.get_stdout()
-        self.mock_stdout(False)
+        with self.mocked_stdout():
+            self._test_toy_build(ec_file=test_ec, extra_args=eb_args, verify=False, testing=False, raise_error=True)
+            stdout = self.get_stdout()
 
         # now 'bin/toy' file and 'toy' command should also be part of sanity check
         pattern_lines = [
@@ -2705,10 +2685,9 @@ class ToyBuildTest(EnhancedTestCase):
             '--trace',
         ]
 
-        self.mock_stdout(True)
-        self._test_toy_build(ec_file=test_ec, extra_args=eb_args, verify=False, testing=False, raise_error=True)
-        stdout = self.get_stdout()
-        self.mock_stdout(False)
+        with self.mocked_stdout():
+            self._test_toy_build(ec_file=test_ec, extra_args=eb_args, verify=False, testing=False, raise_error=True)
+            stdout = self.get_stdout()
 
         pattern_lines = [
             r"^== sanity checking\.\.\.",
@@ -3257,7 +3236,7 @@ class ToyBuildTest(EnhancedTestCase):
         # It should not matter for the result, but triggers slightly different code paths in easyblock.py
         # This should succeed (since the default for --cuda-sanity-check-error-on-failed-checks is False)
         # as to not break backwards compatibility
-        write_file(cuobjdump_file, cuobjdump_txt_shebang),
+        write_file(cuobjdump_file, cuobjdump_txt_shebang)
         write_file(cuobjdump_file, cuobjdump_txt_sm90, append=True)
         write_file(cuobjdump_file, cuobjdump_txt_sm80_ptx, append=True)
         write_file(cuobjdump_file, cuobjdump_txt_sm70, append=True)
@@ -3518,13 +3497,10 @@ class ToyBuildTest(EnhancedTestCase):
         test_ec = os.path.join(self.test_prefix, 'test.eb')
         write_file(test_ec, TOY_EC_TXT + '\nsanity_check_commands = ["toy"]')
 
-        self.mock_stderr(True)
-        self.mock_stdout(True)
-        self._test_toy_build(ec_file=test_ec, extra_args=['--trace'], verify=False, testing=False)
-        stderr = self.get_stderr()
-        stdout = self.get_stdout()
-        self.mock_stderr(False)
-        self.mock_stdout(False)
+        with self.mocked_stdout_stderr():
+            self._test_toy_build(ec_file=test_ec, extra_args=['--trace'], verify=False, testing=False)
+            stderr = self.get_stderr()
+            stdout = self.get_stdout()
 
         self.assertEqual(stderr, '')
 
@@ -3650,13 +3626,10 @@ class ToyBuildTest(EnhancedTestCase):
             '--disable-trace',
         ]
 
-        self.mock_stderr(True)
-        self.mock_stdout(True)
-        self._test_toy_build(ec_file=test_ec, extra_args=extra_args, raise_error=True, debug=False)
-        stderr = self.get_stderr()
-        stdout = self.get_stdout()
-        self.mock_stderr(False)
-        self.mock_stdout(False)
+        with self.mocked_stdout_stderr():
+            self._test_toy_build(ec_file=test_ec, extra_args=extra_args, raise_error=True, debug=False)
+            stderr = self.get_stderr()
+            stdout = self.get_stdout()
 
         test_mod_path = os.path.join(self.test_installpath, 'modules', 'all')
         toy_mod_file = os.path.join(test_mod_path, 'toy', '0.0')
@@ -4243,12 +4216,9 @@ class ToyBuildTest(EnhancedTestCase):
 
             # use context manager to remove lock after 3 seconds
             with RemoveLockAfter(3, toy_lock_path):
-                self.mock_stderr(True)
-                self.mock_stdout(True)
-                self._test_toy_build(extra_args=all_args, verify=False, raise_error=True, testing=False)
-                stderr, stdout = self.get_stderr(), self.get_stdout()
-                self.mock_stderr(False)
-                self.mock_stdout(False)
+                with self.mocked_stdout_stderr():
+                    self._test_toy_build(extra_args=all_args, verify=False, raise_error=True, testing=False)
+                    stderr, stdout = self.get_stderr(), self.get_stdout()
 
                 self.assertEqual(stderr, '')
 
@@ -4261,14 +4231,11 @@ class ToyBuildTest(EnhancedTestCase):
         # check use of --wait-on-lock-limit: if lock is never removed, we should give up when limit is reached
         mkdir(toy_lock_path)
         all_args = extra_args + ['--wait-on-lock-limit=3', '--wait-on-lock-interval=1']
-        self.mock_stderr(True)
-        self.mock_stdout(True)
-        error_pattern = r"Maximum wait time for lock /.*toy_0.0.lock to be released reached: [0-9]+ sec >= 3 sec"
-        self.assertErrorRegex(EasyBuildError, error_pattern, self._test_toy_build, extra_args=all_args,
-                              verify=False, raise_error=True, testing=False)
-        stderr, stdout = self.get_stderr(), self.get_stdout()
-        self.mock_stderr(False)
-        self.mock_stdout(False)
+        with self.mocked_stdout_stderr():
+            error_pattern = r"Maximum wait time for lock /.*toy_0.0.lock to be released reached: [0-9]+ sec >= 3 sec"
+            self.assertErrorRegex(EasyBuildError, error_pattern, self._test_toy_build, extra_args=all_args,
+                                  verify=False, raise_error=True, testing=False)
+            stderr, stdout = self.get_stderr(), self.get_stdout()
 
         wait_matches = wait_regex.findall(stdout)
         self.assertIn(len(wait_matches), range(2, 5))
@@ -4278,12 +4245,9 @@ class ToyBuildTest(EnhancedTestCase):
         for opt in ['--wait-on-lock-limit=3', '--wait-on-lock-interval=1']:
             all_args = extra_args + [opt]
             self.assertNotExists(toy_lock_path)
-            self.mock_stderr(True)
-            self.mock_stdout(True)
-            self._test_toy_build(extra_args=all_args, verify=False, raise_error=True, testing=False)
-            stderr, stdout = self.get_stderr(), self.get_stdout()
-            self.mock_stderr(False)
-            self.mock_stdout(False)
+            with self.mocked_stdout_stderr():
+                self._test_toy_build(extra_args=all_args, verify=False, raise_error=True, testing=False)
+                stderr, stdout = self.get_stderr(), self.get_stdout()
 
             self.assertEqual(stderr, '')
             self.assertTrue(ok_regex.search(stdout), "Pattern '%s' found in: %s" % (ok_regex.pattern, stdout))
@@ -4347,14 +4311,11 @@ class ToyBuildTest(EnhancedTestCase):
                 # change back to original working directory before each test
                 change_dir(orig_wd)
 
-                self.mock_stderr(True)
-                self.mock_stdout(True)
-                self.assertErrorRegex(exc, '.*', self._test_toy_build, ec_file=test_ec, verify=False,
-                                      extra_args=extra_args, raise_error=True, testing=False, raise_systemexit=True)
+                with self.mocked_stdout_stderr():
+                    self.assertErrorRegex(exc, '.*', self._test_toy_build, ec_file=test_ec, verify=False,
+                                          extra_args=extra_args, raise_error=True, testing=False, raise_systemexit=True)
 
-                stderr = self.get_stderr().strip()
-                self.mock_stderr(False)
-                self.mock_stdout(False)
+                    stderr = self.get_stderr().strip()
 
                 pattern = r"^WARNING: signal received \(%s\), " % int(signum)
                 pattern += r"cleaning up locks \(.*software_toy_0.0\)\.\.\."
@@ -4559,12 +4520,10 @@ class ToyBuildTest(EnhancedTestCase):
             self._test_toy_build(ec_file=test_ec)
 
         args = ['--try-toolchain=GCCcore,6.2.0', '--disable-map-toolchains']
-        self.mock_stdout(True)
-        self.mock_stderr(True)
-        self._test_toy_build(ec_file=test_ec, extra_args=args)
-        stderr = self.get_stderr()
-        self.mock_stdout(False)
-        self.mock_stderr(False)
+        with self.mocked_stdout_stderr():
+            self._test_toy_build(ec_file=test_ec, extra_args=args)
+            stderr = self.get_stderr()
+
         pattern = r"WARNING: One or more \.mod files found in .*/software/toy/0.0-GCCcore-6.2.0: .*/lib64/file.mod"
         self.assertRegex(stderr.strip(), pattern)
 
@@ -4617,14 +4576,11 @@ class ToyBuildTest(EnhancedTestCase):
 
         test_report_fp = os.path.join(self.test_buildpath, 'full_test_report.md')
 
-        self.mock_stderr(True)
-        self.mock_stdout(True)
-        self._test_toy_build(ec_file=test_ec, force=False, raise_error=False, verify=False,
-                             test_report_regexs=[r"One or more OS dependencies were not found"],
-                             test_report=test_report_fp)
-        stdout = self.get_stdout()
-        self.mock_stderr(False)
-        self.mock_stdout(False)
+        with self.mocked_stdout_stderr():
+            self._test_toy_build(ec_file=test_ec, force=False, raise_error=False, verify=False,
+                                 test_report_regexs=[r"One or more OS dependencies were not found"],
+                                 test_report=test_report_fp)
+            stdout = self.get_stdout()
 
         patterns = [
             r"Failed to process easyconfig",
@@ -4645,12 +4601,9 @@ class ToyBuildTest(EnhancedTestCase):
 
         test_report_fp = os.path.join(self.test_buildpath, 'full_test_report.md')
 
-        self.mock_stderr(True)
-        self.mock_stdout(True)
-        self._test_toy_build(ec_file=test_ec, test_report=test_report_fp)
-        stdout = self.get_stdout()
-        self.mock_stderr(False)
-        self.mock_stdout(False)
+        with self.mocked_stdout_stderr():
+            self._test_toy_build(ec_file=test_ec, test_report=test_report_fp)
+            stdout = self.get_stdout()
 
         patterns = [
             r"== This is post install message 1",

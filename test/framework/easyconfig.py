@@ -1658,7 +1658,7 @@ class EasyConfigTest(EnhancedTestCase):
 
         with self.mocked_stdout_stderr() as (_, stderr):
             res = resolve_template(tmpl_str, tmpl_dict)
-        stderr = stderr.getvalue()
+            stderr = stderr.getvalue()
 
         for tmpl in [*template_test_deprecations.keys(), *template_test_alternatives.keys()]:
             self.assertNotIn("%(" + tmpl + ")s", res)
@@ -4100,11 +4100,9 @@ class EasyConfigTest(EnhancedTestCase):
         symlink(test_ecs, os.path.join(self.test_prefix, 'easybuild', 'easyconfigs'))
 
         # temporarily mock stderr to avoid printed warning (because 'eb' is not available via $PATH)
-        self.mock_stderr(True)
-
-        # locations listed in 'robot_path' named argument are taken into account
-        res = get_paths_for(subdir='easyconfigs', robot_path=[self.test_prefix])
-        self.mock_stderr(False)
+        with self.mocked_stderr():
+            # locations listed in 'robot_path' named argument are taken into account
+            res = get_paths_for(subdir='easyconfigs', robot_path=[self.test_prefix])
         self.assertTrue(os.path.samefile(test_ecs, res[0]))
 
         # Can't have EB_SCRIPT_PATH set (for some of) these tests
@@ -4582,12 +4580,10 @@ class EasyConfigTest(EnhancedTestCase):
         write_file(test_ec, test_ectxt)
         self.assertErrorRegex(EasyBuildError, unknown_params_error_pattern, EasyConfig, test_ec)
 
-        self.mock_stderr(True)
-        self.mock_stdout(True)
-        fix_deprecated_easyconfigs([test_ec])
-        stderr, stdout = self.get_stderr(), self.get_stdout()
-        self.mock_stderr(False)
-        self.mock_stdout(False)
+        with self.mocked_stdout_stderr():
+            fix_deprecated_easyconfigs([test_ec])
+            stderr, stdout = self.get_stderr(), self.get_stdout()
+
         self.assertFalse(stderr)
         self.assertIn("test.eb... FIXED!", stdout)
 
@@ -5354,10 +5350,9 @@ class EasyConfigTest(EnhancedTestCase):
 
         # also check whether easyconfigs cache works with end-to-end test
         args = [libtoy_ec, '--trace']
-        self.mock_stdout(True)
-        self.eb_main(args, do_build=True, testing=False, raise_error=True, clear_caches=False)
-        stdout = self.get_stdout()
-        self.mock_stdout(False)
+        with self.mocked_stdout():
+            self.eb_main(args, do_build=True, testing=False, raise_error=True, clear_caches=False)
+            stdout = self.get_stdout()
 
         regex = re.compile(r"generating module file @ .*/modules/all/libtoy/0.0", re.M)
         self.assertTrue(regex.search(stdout), "Pattern '%s' should be found in: %s" % (regex.pattern, stdout))
@@ -5366,10 +5361,9 @@ class EasyConfigTest(EnhancedTestCase):
         write_file(libtoy_ec, '')
 
         # retrying installation of libtoy easyconfig should not fail, thanks to easyconfigs cache
-        self.mock_stdout(True)
-        self.eb_main(args, do_build=True, testing=False, raise_error=True, clear_caches=False)
-        stdout = self.get_stdout()
-        self.mock_stdout(False)
+        with self.mocked_stdout():
+            self.eb_main(args, do_build=True, testing=False, raise_error=True, clear_caches=False)
+            stdout = self.get_stdout()
 
         regex = re.compile(r"libtoy/0\.0 is already installed", re.M)
         self.assertTrue(regex.search(stdout), "Pattern '%s' should be found in: %s" % (regex.pattern, stdout))
@@ -5407,9 +5401,9 @@ class EasyConfigTest(EnhancedTestCase):
         with self.mocked_stdout_stderr() as (stdout, stderr):
             self.assertEqual(ec['description'], "name: %(name)s, version: %(version)s, pyshortver: %(pyshortver)s")
 
-        self.assertFalse(stdout.getvalue())
-        regex = re.compile(r"WARNING: Failed to resolve all templates.* %\(pyshortver\)s", re.M)
-        self.assertRegex(stderr.getvalue(), regex)
+            self.assertFalse(stdout.getvalue())
+            regex = re.compile(r"WARNING: Failed to resolve all templates.* %\(pyshortver\)s", re.M)
+            self.assertRegex(stderr.getvalue(), regex)
 
 
 def suite(loader=None):

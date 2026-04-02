@@ -366,9 +366,8 @@ class ParallelBuildTest(EnhancedTestCase):
 
         easyconfigs = process_easyconfig(test_ec) + process_easyconfig(foss_ec)
         ordered_ecs = resolve_dependencies(easyconfigs, self.modtool)
-        self.mock_stdout(True)
-        jobs = build_easyconfigs_in_parallel("echo '%(spec)s'", ordered_ecs, prepare_first=False)
-        self.mock_stdout(False)
+        with self.mocked_stdout():
+            jobs = build_easyconfigs_in_parallel("echo '%(spec)s'", ordered_ecs, prepare_first=False)
 
         # jobs are submitted for foss & gzip (listed easyconfigs)
         self.assertEqual(len(jobs), 2)

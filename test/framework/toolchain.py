@@ -227,12 +227,9 @@ class ToolchainTest(EnhancedTestCase):
         tc.set_options({})
 
         # no warning about redefining if $CC/$CXX are not defined
-        self.mock_stderr(True)
-        self.mock_stdout(True)
-        tc.prepare()
-        stderr, stdout = self.get_stderr(), self.get_stdout()
-        self.mock_stderr(False)
-        self.mock_stdout(False)
+        with self.mocked_stdout_stderr():
+            tc.prepare()
+            stderr, stdout = self.get_stderr(), self.get_stdout()
 
         self.assertEqual(stderr, '')
         self.assertEqual(stdout, '')
@@ -258,12 +255,9 @@ class ToolchainTest(EnhancedTestCase):
         os.environ['CC'] = 'foo'
         os.environ['CXX'] = 'bar'
 
-        self.mock_stderr(True)
-        self.mock_stdout(True)
-        tc.prepare()
-        stderr, stdout = self.get_stderr(), self.get_stdout()
-        self.mock_stderr(False)
-        self.mock_stdout(False)
+        with self.mocked_stdout_stderr():
+            tc.prepare()
+            stderr, stdout = self.get_stderr(), self.get_stdout()
 
         self.assertEqual(stdout, '')
 
@@ -276,12 +270,9 @@ class ToolchainTest(EnhancedTestCase):
         self.assertEqual(os.getenv('CXX'), 'g++')
 
         # no warning if the values are identical to the ones used in the minimal build environment
-        self.mock_stderr(True)
-        self.mock_stdout(True)
-        tc.prepare()
-        stderr, stdout = self.get_stderr(), self.get_stdout()
-        self.mock_stderr(False)
-        self.mock_stdout(False)
+        with self.mocked_stdout_stderr():
+            tc.prepare()
+            stderr, stdout = self.get_stderr(), self.get_stdout()
 
         self.assertEqual(stderr, '')
         self.assertEqual(stdout, '')
@@ -302,12 +293,9 @@ class ToolchainTest(EnhancedTestCase):
         # check whether a warning is printed when a value specified for $CC or $CXX is not found
         init_config(build_options={'minimal_build_env': 'CC:nosuchcommand,CXX:gcc'})
 
-        self.mock_stderr(True)
-        self.mock_stdout(True)
-        tc.prepare()
-        stderr, stdout = self.get_stderr(), self.get_stdout()
-        self.mock_stderr(False)
-        self.mock_stdout(False)
+        with self.mocked_stdout_stderr():
+            tc.prepare()
+            stderr, stdout = self.get_stderr(), self.get_stdout()
 
         warning_msg = "WARNING: 'nosuchcommand' command not found in $PATH, "
         warning_msg += "not setting $CC in minimal build environment"
@@ -324,12 +312,9 @@ class ToolchainTest(EnhancedTestCase):
         for key in ['CFLAGS', 'CXXFLAGS', 'FC']:
             os.environ.pop(key, None)
 
-        self.mock_stderr(True)
-        self.mock_stdout(True)
-        tc.prepare()
-        stderr, stdout = self.get_stderr(), self.get_stdout()
-        self.mock_stderr(False)
-        self.mock_stdout(False)
+        with self.mocked_stdout_stderr():
+            tc.prepare()
+            stderr, stdout = self.get_stderr(), self.get_stdout()
 
         self.assertEqual(os.getenv('CC'), 'gcc')
         self.assertEqual(os.getenv('CXX'), 'g++')
@@ -3317,13 +3302,10 @@ class ToolchainTest(EnhancedTestCase):
             """Helper function: create & prepare toolchain"""
             self.modtool.unload(['gompi', 'OpenMPI', 'hwloc', 'GCC'])
             tc = self.get_toolchain('gompi', version='2018a')
-            self.mock_stderr(True)
-            self.mock_stdout(True)
-            tc.prepare()
-            stderr = self.get_stderr().strip()
-            stdout = self.get_stdout().strip()
-            self.mock_stderr(False)
-            self.mock_stdout(False)
+            with self.mocked_stdout_stderr():
+                tc.prepare()
+                stderr = self.get_stderr().strip()
+                stdout = self.get_stdout().strip()
 
             return tc, stdout, stderr
 

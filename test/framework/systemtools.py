@@ -1209,10 +1209,10 @@ class SystemToolsTest(EnhancedTestCase):
             self.assertEqual(check_python_version(), pyver)
 
         # shouldn't raise any errors, since Python version used to run tests should be supported;
-        self.mock_stderr(True)
-        (py_maj_ver, py_min_ver) = check_python_version()
-        stderr = self.get_stderr()
-        self.mock_stderr(False)
+        with self.mocked_stderr():
+            (py_maj_ver, py_min_ver) = check_python_version()
+            stderr = self.get_stderr()
+
         self.assertFalse(stderr)
 
         self.assertIn(py_maj_ver, [2, 3])
@@ -1418,13 +1418,10 @@ class SystemToolsTest(EnhancedTestCase):
 
             warning_regex = re.compile(r"WARNING: Determining linked libraries.* via 'ldd .*/test.txt' failed!", re.M)
 
-            self.mock_stderr(True)
-            self.mock_stdout(True)
-            res = check_linked_shared_libs(test_file, banned_patterns=['/lib'])
-            stderr = self.get_stderr()
-            stdout = self.get_stdout()
-            self.mock_stderr(False)
-            self.mock_stdout(False)
+            with self.mocked_stdout_stderr():
+                res = check_linked_shared_libs(test_file, banned_patterns=['/lib'])
+                stderr = self.get_stderr()
+                stdout = self.get_stdout()
 
             fail_msg = "Pattern '%s' should be found in: %s" % (warning_regex.pattern, stderr)
             self.assertTrue(warning_regex.search(stderr), fail_msg)

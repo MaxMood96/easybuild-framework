@@ -40,10 +40,9 @@ class EnvironmentTest(EnhancedTestCase):
 
     def test_setvar(self):
         """Test setvar function."""
-        self.mock_stdout(True)
-        env.setvar('FOO', 'bar')
-        txt = self.get_stdout()
-        self.mock_stdout(False)
+        with self.mocked_stdout():
+            env.setvar('FOO', 'bar')
+            txt = self.get_stdout()
         self.assertEqual(os.getenv('FOO'), 'bar')
         self.assertEqual(os.environ['FOO'], 'bar')
         # no printing if dry run is not enabled
@@ -54,19 +53,17 @@ class EnvironmentTest(EnhancedTestCase):
             'silent': False,
         }
         init_config(build_options=build_options)
-        self.mock_stdout(True)
-        env.setvar('FOO', 'foobaz')
-        txt = self.get_stdout()
-        self.mock_stdout(False)
+        with self.mocked_stdout():
+            env.setvar('FOO', 'foobaz')
+            txt = self.get_stdout()
         self.assertEqual(os.getenv('FOO'), 'foobaz')
         self.assertEqual(os.environ['FOO'], 'foobaz')
         self.assertEqual(txt, "  export FOO='foobaz'\n")
 
         # disabling verbose
-        self.mock_stdout(True)
-        env.setvar('FOO', 'barfoo', verbose=False)
-        txt = self.get_stdout()
-        self.mock_stdout(False)
+        with self.mocked_stdout():
+            env.setvar('FOO', 'barfoo', verbose=False)
+            txt = self.get_stdout()
         self.assertEqual(os.getenv('FOO'), 'barfoo')
         self.assertEqual(os.environ['FOO'], 'barfoo')
         self.assertEqual(txt, '')

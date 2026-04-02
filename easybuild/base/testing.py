@@ -209,30 +209,30 @@ class TestCase(OrigTestCase):
         return sys.stderr.getvalue()
 
     @contextmanager
-    def mocked_stdout(self):
+    def mocked_stdout(self, force_tty=False):
         """Context manager to mock stdout"""
         self.mock_stdout(True)
         try:
             yield sys.stdout
         finally:
-            self.mock_stdout(False)
+            self.mock_stdout(False, force_tty=force_tty)
 
     @contextmanager
-    def mocked_stderr(self):
+    def mocked_stderr(self, force_tty=False):
         """Context manager to mock stdout"""
         self.mock_stderr(True)
         try:
             yield sys.stderr
         finally:
-            self.mock_stderr(False)
+            self.mock_stderr(False, force_tty=force_tty)
 
     @contextmanager
-    def mocked_stdout_stderr(self, mock_stdout=True, mock_stderr=True):
+    def mocked_stdout_stderr(self, mock_stdout=True, mock_stderr=True, force_tty=False):
         """Context manager to mock stdout and stderr"""
         if mock_stdout:
-            self.mock_stdout(True)
+            self.mock_stdout(True, force_tty=force_tty)
         if mock_stderr:
-            self.mock_stderr(True)
+            self.mock_stderr(True, force_tty=force_tty)
         try:
             if mock_stdout and mock_stderr:
                 yield sys.stdout, sys.stderr

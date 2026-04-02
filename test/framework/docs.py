@@ -1349,13 +1349,10 @@ class DocsTest(EnhancedTestCase):
         Test output produced by --help, with various output formats
         """
         def get_eb_help_output(arg=''):
-            self.mock_stderr(True)
-            self.mock_stdout(True)
-            self.eb_main(['--help', arg])
-            stderr = self.get_stderr()
-            stdout = self.get_stdout()
-            self.mock_stderr(False)
-            self.mock_stdout(False)
+            with self.mocked_stdout_stderr():
+                self.eb_main(['--help', arg])
+                stderr = self.get_stderr()
+                stdout = self.get_stdout()
 
             self.assertFalse(stderr)
             return stdout
