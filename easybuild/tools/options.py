@@ -1316,8 +1316,8 @@ class EasyBuildOptions(GeneralOption):
             # prefix applies to selected path configuration options;
             # repository has to be reinitialised to take new repositorypath in account;
             # in the legacy-style configuration, repository is initialised in configuration file itself;
-            path_opts = ['buildpath', 'containerpath', 'installpath', 'packagepath', 'repository', 'repositorypath',
-                         'sourcepath', 'sourcepath_data']
+            path_opts = ['buildpath', 'bwrap_installpath', 'containerpath', 'installpath', 'packagepath',
+                         'repository', 'repositorypath', 'sourcepath', 'sourcepath_data']
             for dest in path_opts:
                 if not self.options._action_taken.get(dest, False):
                     if dest == 'repository':
