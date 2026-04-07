@@ -850,19 +850,21 @@ class EasyBlock:
         return exts_sources
 
     @_obtain_file_update_progress_bar_on_return
-    def obtain_file(self, filename, extension=False, urls=None, download_filename=None, force_download=False,
-                    git_config=None, no_download=False, download_instructions=None, alt_location=None,
-                    warning_only=False):
+    def obtain_file(self, filename, **kwargs):
+        """
+        Locate file with given name.
+        Wrapper around obtain_file_raise_on_failure which will raise an exception if file could not be found,
+        which checks whether --fetch-all was used.
+        """
         try:
-            return self.obtain_file_raise_on_failure(filename, extension, urls, download_filename, force_download,
-                                                     git_config, no_download, download_instructions, alt_location,
-                                                     warning_only)
+            return self.obtain_file_raise_on_failure(filename, **kwargs)
         except Exception:
             if build_option('fetch_all'):
+                urls = kwargs.get('urls')
                 if not urls:
-                    urls = ['NO_URL']
+                    urls = ['NO_SOURCE_URLS_PROVIDED']
                 print_warning(f"FAILED: File {filename} not found from {urls[0]}. Continuing ...")
-                return 'NO_FILE_FOUND'
+                return None
             else:
                 raise
 

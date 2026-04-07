@@ -5589,7 +5589,8 @@ class CommandLineOptionsTest(EnhancedTestCase):
             self.assert_multi_regex(patterns, stdout)
             self.assertNotRegex(stdout, r"^== creating build dir, resetting environment\.\.\.$")
 
-            self.assertRegex(stderr, r"WARNING: FAILED: File toy-1.2.3.4.5.6.tar.gz not found from NO_URL")
+            pattern = r"WARNING: FAILED: File toy-1.2.3.4.5.6.tar.gz not found from NO_SOURCE_URLS_PROVIDED."
+            self.assertRegex(stderr, pattern)
 
     def test_parse_external_modules_metadata(self):
         """Test parse_external_modules_metadata function."""
