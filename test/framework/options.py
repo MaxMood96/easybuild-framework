@@ -5544,6 +5544,53 @@ class CommandLineOptionsTest(EnhancedTestCase):
             args.append('--ignore-checksums')
             self.eb_main(args, do_build=True, raise_error=True)
 
+    def test_fetch_all(self):
+        """Test use of --fetch-all"""
+        options = EasyBuildOptions(go_args=['--fetch-all'])
+
+        self.assertTrue(options.options.fetch)
+        self.assertTrue(options.options.fetch_all)
+        self.assertEqual(options.options.stop, 'fetch')
+        self.assertEqual(options.options.modules_tool, None)
+        self.assertTrue(options.options.ignore_locks)
+        self.assertTrue(options.options.ignore_osdeps)
+
+        # in this test we want to fake the case were no modules tool are in the system so tweak it
+        self.modtool = None
+
+        # create lock dir to see whether --fetch-all trips over it (it shouldn't)
+        lock_fn = os.path.join(self.test_installpath, 'software', 'toy', '0.0').replace('/', '_') + '.lock'
+        lock_path = os.path.join(self.test_installpath, 'software', '.locks', lock_fn)
+        mkdir(lock_path, parents=True)
+
+        # copy toy-0.0.eb test easyconfig, tweak version to something that no source can be obtained for
+        toy_ec = os.path.join(os.path.dirname(__file__), 'easyconfigs', 'test_ecs', 't', 'toy', 'toy-0.0.eb')
+        toy_ec_txt = read_file(toy_ec)
+        test_ec_txt = toy_ec_txt.replace("version = '0.0'", "version = '1.2.3.4.5.6'")
+        test_ec = os.path.join(self.test_prefix, 'test.eb')
+        write_file(test_ec, test_ec_txt)
+
+        # Run for a "regular" EC and one with an external module dependency
+        # which might trip up the dependency resolution (see #4298)
+        for ec in ('toy-0.0.eb', 'toy-0.0-deps.eb'):
+            ecs = [test_ec, ec]
+
+            # verify that --fetch fails, it should
+            error_pattern = "Couldn't find file toy-1.2.3.4.5.6.tar.gz anywhere"
+            self.assertErrorRegex(EasyBuildError, error_pattern, self._run_mock_eb, ecs + ['--fetch'],
+                                  raise_error=True, testing=False)
+
+            stdout, stderr = self._run_mock_eb(ecs + ['--fetch-all'], raise_error=True, strip=True, testing=False)
+
+            patterns = [
+                r"^== fetching files and verifying checksums\.\.\.$",
+                r"^== COMPLETED: Installation STOPPED successfully \(took .* secs?\)$",
+            ]
+            self.assert_multi_regex(patterns, stdout)
+            self.assertNotRegex(stdout, r"^== creating build dir, resetting environment\.\.\.$")
+
+            self.assertRegex(stderr, r"WARNING: FAILED: File toy-1.2.3.4.5.6.tar.gz not found from NO_URL")
+
     def test_parse_external_modules_metadata(self):
         """Test parse_external_modules_metadata function."""
         # by default, provided external module metadata cfg files are picked up
