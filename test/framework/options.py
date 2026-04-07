@@ -5193,7 +5193,7 @@ class CommandLineOptionsTest(EnhancedTestCase):
         # --merge-pr also works on easyblocks (& framework) PRs
         args = [
             '--merge-pr',
-            '3582',
+            '4067',
             '--pr-target-repo=easybuild-easyblocks',
             '-D',
             '--github-user=%s' % GITHUB_TEST_ACCOUNT,
@@ -5201,12 +5201,12 @@ class CommandLineOptionsTest(EnhancedTestCase):
         stdout, stderr = self._run_mock_eb(args, do_build=True, raise_error=True, testing=False)
         self.assertEqual(stderr.strip(), '')
         expected_stdout = '\n'.join([
-            "Checking eligibility of easybuilders/easybuild-easyblocks PR #3582 for merging...",
+            "Checking eligibility of easybuilders/easybuild-easyblocks PR #4067 for merging...",
             "* targets develop branch: OK",
             "* test suite passes: OK",
             "* no pending change requests: OK",
-            "* approved review: OK (by hajgato)",
-            "* milestone is set: OK (5.0.0)",
+            "* approved review: OK (by boegel)",
+            "* milestone is set: OK (5.2.1)",
             "* mergeable state is clean: PR is already merged",
             '',
             "Review OK, merging pull request!",
