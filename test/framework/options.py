@@ -5389,6 +5389,7 @@ class CommandLineOptionsTest(EnhancedTestCase):
 
         expected = [
             'buildpath',
+            'bwrap-installpath',
             'containerpath',
             'installpath',
             'packagepath',
