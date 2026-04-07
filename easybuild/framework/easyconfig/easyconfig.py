@@ -2238,12 +2238,14 @@ def resolve_template(value, tmpl_dict, expect_resolved=True):
 
 def _copy_ec_dict(easyconfig):
     """Copy an easyconfig dict as (initially) parsed"""
-    # deepcopy on the ec doesn't fully copy it, but requires the copy() method so temorarily remove it
+    # deepcopy on the EasyConfig instance doesn't fully copy it,
+    # but requires the copy() method, so temporarily remove it
     ec = easyconfig.pop('ec')
     try:
         new_easyconfig = copy.deepcopy(easyconfig)  # Copy the rest of the dict
     finally:
-        easyconfig['ec'] = ec  # Put back
+        # always put back EasyConfig instance
+        easyconfig['ec'] = ec
     new_easyconfig['ec'] = ec.copy()
     return new_easyconfig
 
