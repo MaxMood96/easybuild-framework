@@ -473,6 +473,8 @@ class EasyBuildOptions(GeneralOption):
                                           False),
             'fetch': ("Allow downloading sources ignoring OS and modules tool dependencies, "
                       "implies --stop=fetch, --ignore-osdeps and ignore modules tool", None, 'store_true', False),
+            'fetch-all': ("Download sources (like --fetch), don't stop when download failed for one of the easyconfig",
+                          None, 'store_true', False),
             'filter-deps': ("List of dependencies that you do *not* want to install with EasyBuild, "
                             "because equivalent OS packages are installed. (e.g. --filter-deps=zlib,ncurses)",
                             'strlist', 'extend', None),
@@ -1370,6 +1372,10 @@ class EasyBuildOptions(GeneralOption):
         # Update the search_paths (if any) to absolute paths
         if self.options.search_paths is not None:
             self.options.search_paths = [os.path.abspath(path) for path in self.options.search_paths]
+
+        # --fetch-all implies --fetch
+        if self.options.fetch_all:
+            self.options.fetch = True
 
         # Fetch option implies stop=fetch, no moduletool and ignore-osdeps
         if self.options.fetch:
