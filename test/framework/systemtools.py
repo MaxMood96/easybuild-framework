@@ -518,13 +518,12 @@ ERROR:root:Driver not initialized (amdgpu not found in modules)"""
 
 ROCM_SMI_DRIVER_VERSION_BROKEN = ('', ROCM_SMI_DRIVER_VERSION_BROKEN_STDERR)
 
-ROCM_SMI_PRODUCT_NAME = """
-device,Card Series,Card Model,Card Vendor,Card SKU,Subsystem ID,Device Rev,Node ID,GUID,GFX Version
+ROCM_SMI_PRODUCT_NAME = """device,Card Series,Card Model,Card Vendor,Card SKU,Subsystem ID,Device Rev,Node ID,GUID,GFX Version
 card0,AMD Instinct MI250X/MI250,0x740c,Advanced Micro Devices Inc. [AMD/ATI],D65209,0x0b0c,0x01,8,13025,gfx90a
 card1,AMD Instinct MI250X/MI250,0x740c,Advanced Micro Devices Inc. [AMD/ATI],D65209,0x0b0c,0x01,9,24866,gfx90a
 card2,AMD Instinct MI250X/MI250,0x740c,Advanced Micro Devices Inc. [AMD/ATI],D65209,0x0b0c,0x01,10,36962,gfx90a
 card3,AMD Instinct MI250X/MI250,0x740c,Advanced Micro Devices Inc. [AMD/ATI],D65209,0x0b0c,0x01,11,51627,gfx90a
-"""
+"""  # noqa (ignore long lines)
 
 MACHINE_NAME = None
 
