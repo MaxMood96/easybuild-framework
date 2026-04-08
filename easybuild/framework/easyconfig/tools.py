@@ -203,8 +203,8 @@ def dep_graph(filename, specs):
     silent = build_option('silent')
     try:
         dep_graph.render(base, cleanup=True)
-    except Exception:
-        print_error_and_exit("Failed writing " + what, silent=silent)
+    except Exception as err:
+        print_error_and_exit(f"Failed writing {what}: {err}", silent=silent)
     else:
         print_msg("Wrote " + what, silent=silent)
 
