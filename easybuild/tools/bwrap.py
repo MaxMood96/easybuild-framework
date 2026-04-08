@@ -34,12 +34,16 @@ import json
 import os
 
 from easybuild.base import fancylogger
-from easybuild.tools.build_log import print_msg
+from easybuild.tools.build_log import EasyBuildError, print_msg
 from easybuild.tools.config import install_path
 from easybuild.tools.filetools import mkdir, write_file
 from easybuild.tools.utilities import trace_msg
 
-BWRAP_INFO = {
+
+BWRAP_INFO_JSON = 'bwrap_info.json'
+
+# global state to exchange info required when using bwrap between EasyBuild sessions
+_bwrap_info = {
     'bwrap_cmd': [],
     'bwrap_eb_options': [],
     'bwrap_installpath': '',
@@ -48,54 +52,91 @@ BWRAP_INFO = {
     'modules_to_install': set(),
 
 }
-BWRAP_INFO_JSON = 'bwrap_info.json'
 
 _log = fancylogger.getLogger('bwrap', fname=False)
+
+
+def get_bwrap_info(key):
+    """
+    Get specified info w.r.t. use of bwrap
+    """
+    if key in _bwrap_info:
+        return _bwrap_info[key]
+    else:
+        raise EasyBuildError(f"Unknown key specified to get bwrap info: {key}")
+
+
+def set_bwrap_info(key, value):
+    """
+    Set specified info w.r.t. use of bwrap
+    """
+    if key in _bwrap_info:
+        _bwrap_info[key] = value
+    else:
+        raise EasyBuildError(f"Unknown key specified to set bwrap info: {key}")
+
+
+def update_bwrap_info(key, value):
+    """
+    Update specified info w.r.t. use of bwrap
+    """
+    if key in _bwrap_info:
+        current_value = _bwrap_info[key]
+        if isinstance(current_value, set) and isinstance(value, set):
+            current_value.update(value)
+        else:
+            raise EasyBuildError("Unknown type of value encountered when updating bwrap info!")
+    else:
+        raise EasyBuildError(f"Unknown key specified to update bwrap info: {key}")
 
 
 def prepare_bwrap(bwrap_installpath):
     """
     Prepare for running EasyBuild with bwrap:
-    - update BWRAP_INFO
-    - write json metadata file with BWRAP_INFO
+    - update _bwrap_info
+    - write json metadata file with contents of _bwrap_info
     - set environment variable $EB_BWRAP_CMD
 
     :param bwrap_installpath: bwrap install path
     """
 
-    BWRAP_INFO['bwrap_installpath'] = bwrap_installpath
-    BWRAP_INFO['installpath_software'] = install_path(typ='software')
-    BWRAP_INFO['installpath_modules'] = install_path(typ='modules')
+    set_bwrap_info('bwrap_installpath', bwrap_installpath)
 
-    installpath_software = BWRAP_INFO['installpath_software']
+    installpath_software = install_path(typ='software')
+    set_bwrap_info('installpath_software', installpath_software)
+
+    set_bwrap_info('installpath_modules', install_path(typ='modules'))
+
     bwrap_modules_installpath = os.path.join(bwrap_installpath, 'modules')
 
     bwrap_cmd = ['bwrap', '--dev-bind', '/', '/']
 
     # bind mount all software directories
-    for mod in BWRAP_INFO['modules_to_install']:
+    for mod in sorted(get_bwrap_info('modules_to_install')):
         installdir = os.path.join(os.path.realpath(installpath_software), mod)
         bwrap_installdir = os.path.join(bwrap_installpath, 'software', mod)
         mkdir(installdir, parents=True)
         mkdir(bwrap_installdir, parents=True)
         bwrap_cmd.extend(['--bind', bwrap_installdir, installdir])
 
-    BWRAP_INFO['bwrap_cmd'] = bwrap_cmd
+    set_bwrap_info('bwrap_cmd', bwrap_cmd)
+    bwrap_cmd_str = ' '.join(bwrap_cmd)
 
     # disable `--bwrap` to prepare for a real installation (in bwrap namespace)
-    BWRAP_INFO['bwrap_eb_options'] = ['--disable-bwrap', f'--installpath-modules={bwrap_modules_installpath}']
+    bwrap_eb_options = ['--disable-bwrap', f'--installpath-modules={bwrap_modules_installpath}']
+    set_bwrap_info('bwrap_eb_options', bwrap_eb_options)
 
-    _log.info(f'Info needed for bwrap: {BWRAP_INFO}')
+    _log.info(f'Info needed for bwrap: {_bwrap_info}')
 
     # write json file with bwrap install info into bwrap installpath
-    bwrap_infopath = os.path.join(BWRAP_INFO['bwrap_installpath'], BWRAP_INFO_JSON)
-    write_file(bwrap_infopath, json.dumps(BWRAP_INFO, default=list, indent=2, sort_keys=True), backup=True)
+    bwrap_infopath = os.path.join(bwrap_installpath, BWRAP_INFO_JSON)
+    write_file(bwrap_infopath, json.dumps(_bwrap_info, default=list, indent=2, sort_keys=True), backup=True)
 
     print_msg('Building/installing in bwrap namespace')
-    trace_msg(f'bwrap command (to prefix eb command): {" ".join(BWRAP_INFO["bwrap_cmd"])}')
+    trace_msg(f'bwrap command (to prefix eb command): {bwrap_cmd_str}')
     trace_msg(f'bwrap info file: {bwrap_infopath}')
-    trace_msg(f'bwrap EasyBuild options: {BWRAP_INFO["bwrap_eb_options"]}')
+    trace_msg(f'bwrap EasyBuild options: {bwrap_eb_options}')
 
     # set environment variable $EB_BWRAP_CMD to make it available for the interactive debug shell
     # when rerunning with bwrap
-    os.environ['EB_BWRAP_CMD'] = ' '.join(BWRAP_INFO['bwrap_cmd'])
+    os.environ['EB_BWRAP_CMD'] = bwrap_cmd_str

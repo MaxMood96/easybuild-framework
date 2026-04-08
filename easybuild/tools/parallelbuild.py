@@ -43,7 +43,7 @@ from easybuild.base import fancylogger
 from easybuild.framework.easyblock import get_easyblock_instance
 from easybuild.framework.easyconfig.easyconfig import ActiveMNS
 from easybuild.tools.build_log import EasyBuildError
-from easybuild.tools.bwrap import BWRAP_INFO
+from easybuild.tools.bwrap import get_bwrap_info
 from easybuild.tools.config import build_option, get_repository, get_repositorypath
 from easybuild.tools.filetools import get_cwd
 from easybuild.tools.module_naming_scheme.utilities import det_full_ec_version
@@ -155,9 +155,9 @@ def submit_jobs(ordered_ecs, cmd_line_opts, testing=False, prepare_first=True, t
     # cfr. https://github.com/easybuilders/easybuild-framework/issues/3307
     opts.append('--disable-job')
 
-    bwrap_cmd = BWRAP_INFO['bwrap_cmd']
+    bwrap_cmd = get_bwrap_info('bwrap_cmd')
     if bwrap_cmd:
-        opts.extend(BWRAP_INFO['bwrap_eb_options'])
+        opts.extend(get_bwrap_info('bwrap_eb_options'))
 
     # compose string with command line options, properly quoted and with '%' characters escaped
     opts_str = ' '.join(opts).replace('%', '%%')
