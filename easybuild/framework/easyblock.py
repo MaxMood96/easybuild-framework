@@ -4671,7 +4671,7 @@ class EasyBlock:
                 else:
                     test_cmd = test
             if not os.path.exists(test_cmd):
-                raise EasyBuildError(f"Test specifies invalid path: {test_cmd}")
+                raise EasyBuildError(f"Test specifies non-existing path: {test_cmd}")
 
             if os.path.isfile(test_cmd):
                 original_perms = os.lstat(test_cmd).st_mode

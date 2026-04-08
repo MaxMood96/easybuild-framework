@@ -1285,9 +1285,9 @@ class EasyBlockTest(EnhancedTestCase):
         self.writeEC()
         eb = EasyBlock(EasyConfig(self.eb_file))
         eb.cfg['tests'] = ['does-not-exist']
-        self.assertRaisesRegex(EasyBuildError, 'invalid path: does-not-exist', eb.test_cases_step)
+        self.assertRaisesRegex(EasyBuildError, 'non-existing path: does-not-exist', eb.test_cases_step)
         eb.cfg['tests'] = ['/abs/path/does-not-exist']
-        self.assertRaisesRegex(EasyBuildError, 'invalid path: /abs/path/does-not-exist', eb.test_cases_step)
+        self.assertRaisesRegex(EasyBuildError, 'non-existing path: /abs/path/does-not-exist', eb.test_cases_step)
 
         mock_test_bin = os.path.join(self.test_prefix, 'pi', 'test_me')
         os.environ['PATH'] += f':{os.path.dirname(mock_test_bin)}'
@@ -1295,7 +1295,8 @@ class EasyBlockTest(EnhancedTestCase):
 
         adjust_permissions(mock_test_bin, stat.S_IXUSR)
         eb.cfg['tests'] = [os.path.basename(mock_test_bin)]
-        self.assertRaisesRegex(EasyBuildError, f'invalid path: {os.path.basename(mock_test_bin)}', eb.test_cases_step)
+        fn = os.path.basename(mock_test_bin)
+        self.assertRaisesRegex(EasyBuildError, f'non-existing path: {fn}', eb.test_cases_step)
 
         init_config(args=[f"--sourcepath={self.test_prefix}"])
         write_file(eb.logfile, '')
@@ -1318,7 +1319,6 @@ class EasyBlockTest(EnhancedTestCase):
         self.assertIn('Test case success', read_file(eb.logfile))
 
         # Detect failure
-        adjust_permissions(mock_test_bin, stat.S_IWRITE)
         mock_test_bin_fail = mock_test_bin + "_fail"
         write_file(mock_test_bin_fail, "#!/bin/bash\necho 'Test case failure' && exit 1")
         eb.cfg['tests'] = [mock_test_bin_fail]
