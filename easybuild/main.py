@@ -65,7 +65,7 @@ from easybuild.framework.easyconfig.tools import categorize_files_by_type, dep_g
 from easybuild.framework.easyconfig.tools import det_easyconfig_paths, dump_env_script, get_paths_for
 from easybuild.framework.easyconfig.tools import parse_easyconfigs, review_pr, run_contrib_checks, skip_available
 from easybuild.framework.easyconfig.tweak import obtain_ec_for, tweak
-from easybuild.tools.bwraptools import BWRAP_INFO, prepare_bwrap
+from easybuild.tools.bwrap import BWRAP_INFO, prepare_bwrap
 from easybuild.tools.config import build_option, find_last_log, get_repository, get_repositorypath
 from easybuild.tools.containers.common import containerize
 from easybuild.tools.docs import list_software
@@ -360,9 +360,6 @@ def process_eb_args(eb_args, eb_go, cfg_settings, modtool, testing, init_session
 
     global _log
 
-    if options.bwrap:
-        _log.experimental("support for building in bwrap namespace (--bwrap)")
-
     # Unpack cfg_settings
     (build_specs, _log, _logfile, robot_path, search_query, _eb_tmpdir, try_to_generate,
      from_pr_list, tweaked_ecs_paths) = cfg_settings
@@ -589,9 +586,11 @@ def process_eb_args(eb_args, eb_go, cfg_settings, modtool, testing, init_session
             inject_checksums_to_json(ordered_ecs, options.inject_checksums_to_json)
 
     elif options.bwrap:
+        # require that 'experimental' configuration setting is enabled
+        _log.experimental("support for building in bwrap namespace (--bwrap)")
         # updating modules_to_install because process_eb_args may run multiple times:
         # once for each easyconfig in the easystack
-        BWRAP_INFO['modules_to_install'].update(set(dry_run(easyconfigs, modtool, modules_to_install=True)))
+        BWRAP_INFO['modules_to_install'].update(set(dry_run(easyconfigs, modtool, return_modules_to_install=True)))
         if not options.job:
             return True
 

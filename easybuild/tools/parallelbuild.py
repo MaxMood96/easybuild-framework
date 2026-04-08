@@ -43,7 +43,7 @@ from easybuild.base import fancylogger
 from easybuild.framework.easyblock import get_easyblock_instance
 from easybuild.framework.easyconfig.easyconfig import ActiveMNS
 from easybuild.tools.build_log import EasyBuildError
-from easybuild.tools.bwraptools import BWRAP_INFO
+from easybuild.tools.bwrap import BWRAP_INFO
 from easybuild.tools.config import build_option, get_repository, get_repositorypath
 from easybuild.tools.filetools import get_cwd
 from easybuild.tools.module_naming_scheme.utilities import det_full_ec_version
@@ -172,7 +172,7 @@ def submit_jobs(ordered_ecs, cmd_line_opts, testing=False, prepare_first=True, t
     full_eb_cmd = f"{eb_cmd} %(spec)s {opts_str} %(add_opts)s --testoutput=%(output_dir)s"
 
     if bwrap_cmd:
-        full_eb_cmd = f'{" ".join(bwrap_cmd)} {full_eb_cmd}'
+        full_eb_cmd = ' '.join(bwrap_cmd) + ' ' + full_eb_cmd
 
     command = ' && '.join(pre_cmd + [full_eb_cmd])
 
