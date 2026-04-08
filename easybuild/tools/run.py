@@ -101,7 +101,7 @@ with the following fields:
 """
 
 
-class RunShellCmdError(BaseException):
+class RunShellCmdError(Exception):
 
     def __init__(self, cmd_result, caller_info, *args, **kwargs):
         """Constructor for RunShellCmdError."""
