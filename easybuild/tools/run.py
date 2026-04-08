@@ -279,7 +279,7 @@ def create_cmd_scripts(cmd_str, work_dir, env, tmpdir, out_file, err_file):
     # prefix launch command with bwrap (if used)
     bwrap_cmd = os.getenv('EB_BWRAP_CMD')
     if bwrap_cmd:
-        launch_cmd = bwrap_cmd + ' '.join([bwrap_cmd, launch_cmd])
+        launch_cmd = bwrap_cmd + ' ' + launch_cmd
 
     with open(cmd_fp, 'w') as fid:
         fid.write('#!/usr/bin/env bash\n')
