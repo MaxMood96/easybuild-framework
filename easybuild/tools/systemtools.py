@@ -350,7 +350,7 @@ def get_cpu_architecture():
     riscv32_regex = re.compile("riscv32.*")
     riscv64_regex = re.compile("riscv64.*")
 
-    system, node, release, version, machine, processor = platform.uname()
+    machine = platform.uname()[4]
 
     arch = UNKNOWN
     if machine == X86_64:
@@ -452,7 +452,7 @@ def get_cpu_family():
             family = POWER
 
             # Distinguish POWER running in little-endian mode
-            system, node, release, version, machine, processor = platform.uname()
+            machine = platform.uname()[4]
             powerle_regex = re.compile(r"^ppc(\d*)le")
             if powerle_regex.search(machine):
                 family = POWER_LE
@@ -807,9 +807,9 @@ def get_shared_lib_ext():
     }
 
     os_type = get_os_type()
-    if os_type in shared_lib_exts.keys():
+    try:
         return shared_lib_exts[os_type]
-    else:
+    except KeyError:
         raise SystemToolsException("Unable to determine extention for shared libraries,"
                                    "unknown system name: %s" % os_type)
 
@@ -1089,7 +1089,7 @@ def get_cuda_object_dump_raw(path):
 
     # check that the file is an executable or object (shared library) or archive (static library)
     result = None
-    if any(x in res.output for x in ['executable', 'object', 'archive']):
+    if any(x in res.output for x in ['executable', 'object', 'archive']) and 'text executable' not in res.output:
         # Make sure we have a cuobjdump command
         if not shutil.which('cuobjdump'):
             raise EasyBuildError("Failed to get object dump from CUDA file: cuobjdump command not found")

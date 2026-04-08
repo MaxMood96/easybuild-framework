@@ -571,6 +571,8 @@ def mocked_run_shell_cmd(cmd, **kwargs):
         "file mock_non_cuda_sharedlib_unexpected": FILE_SHAREDLIB,
         "file mock_cuda_staticlib": "current ar archive",
         "file mock_noncuda_file": "ASCII text",
+        "file mock_noncuda_exe_ascii": "ASCII text executable",
+        "file mock_noncuda_exe_utf8": "UTF-8 Unicode text executable",
         "cuobjdump mock_cuda_bin": CUOBJDUMP_FAT,
         "cuobjdump mock_cuda_sharedlib": CUOBJDUMP_PTX_ONLY,
         "cuobjdump mock_invalid_cuda_sharedlib": CUOBJDUMP_INVALID,
@@ -586,11 +588,18 @@ def mocked_run_shell_cmd(cmd, **kwargs):
             "rocm-smi --showdriverversion --csv": ROCM_SMI_DRIVER_VERSION_BROKEN,
         })
 
-    known_fail_cmds = {
+    known_fail_cmds = {**{
         "cuobjdump mock_non_cuda_sharedlib": ("cuobjdump info  : File '/path/to/mock.so' does not contain device code",
                                               255),
-        "cuobjdump mock_non_cuda_sharedlib_unexpected": ("cuobjdump info    : Some unexpected output", 255),
-    }
+    }, **{
+        f"cuobjdump {file}": ("cuobjdump info    : Some unexpected output", 255)
+        for file in (
+            "mock_non_cuda_sharedlib_unexpected",
+            "mock_noncuda_file",
+            "mock_noncuda_exe_ascii",
+            "mock_noncuda_exe_utf8",
+            )
+    }}
     if cmd in known_cmds:
         output = known_cmds[cmd]
         if isinstance(output, tuple) and len(output) == 2:
@@ -1460,7 +1469,9 @@ class SystemToolsTest(EnhancedTestCase):
         self.assertEqual(get_cuda_object_dump_raw('mock_cuda_bin'), CUOBJDUMP_FAT)
 
         # Test case 3: call on a file that is NOT an executable, object or archive:
-        self.assertIsNone(get_cuda_object_dump_raw('mock_noncuda_file'))
+        for file in ("mock_noncuda_file", "mock_noncuda_exe_ascii", "mock_noncuda_exe_utf8"):
+            with self.subTest(file=file):
+                self.assertIsNone(get_cuda_object_dump_raw(file))
 
         # Test case 4: call on a file that is an shared lib, but not a CUDA shared lib
         # Check debug message in this case
@@ -1508,8 +1519,10 @@ class SystemToolsTest(EnhancedTestCase):
         self.assertEqual(get_cuda_architectures('mock_cuda_bin', 'ptx'), mock_cuda_bin_ptx)
 
         # Test case 2: call on a file that is NOT an executable, object or archive:
-        self.assertIsNone(get_cuda_architectures('mock_noncuda_file', 'elf'))
-        self.assertIsNone(get_cuda_architectures('mock_noncuda_file', 'ptx'))
+        for file in ("mock_noncuda_file", "mock_noncuda_exe_ascii", "mock_noncuda_exe_utf8"):
+            with self.subTest(file=file):
+                self.assertIsNone(get_cuda_architectures(file, 'elf'))
+                self.assertIsNone(get_cuda_architectures(file, 'ptx'))
 
         # Test case 3: call on a file that is an shared lib, but not a CUDA shared lib
         self.assertIsNone(get_cuda_architectures('mock_non_cuda_sharedlib', 'elf'))
