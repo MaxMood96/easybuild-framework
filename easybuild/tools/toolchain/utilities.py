@@ -78,7 +78,6 @@ def search_toolchain(name):
                     # exclude the toolchain class defined in that module
                     if not tc_mod.__file__ == sys.modules[elem.__module__].__file__:
                         elem_name = getattr(elem, '__name__', elem)
-                        # print(f"   Adding {elem_name} to list of imported classes used for looking for constants")
                         _log.debug("Adding %s to list of imported classes used for looking for constants", elem_name)
                         mod_classes.append(elem)
 
