@@ -1089,7 +1089,7 @@ def get_cuda_object_dump_raw(path):
 
     # check that the file is an executable or object (shared library) or archive (static library)
     result = None
-    if any(x in res.output for x in ['executable', 'object', 'archive']):
+    if any(x in res.output for x in ['executable', 'object', 'archive']) and 'text executable' not in res.output:
         # Make sure we have a cuobjdump command
         if not shutil.which('cuobjdump'):
             raise EasyBuildError("Failed to get object dump from CUDA file: cuobjdump command not found")
