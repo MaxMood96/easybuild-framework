@@ -281,6 +281,8 @@ class EasyBuildOptions(GeneralOption):
         descr = ("Basic options", "Basic runtime options for EasyBuild.")
 
         opts = OrderedDict({
+            'bwrap': ("Build/install in bubblewrap namespace, enabling installation to a temporary location before "
+                      "moving to the final destination", None, 'store_true', False),
             'dry-run': ("Print build overview incl. dependencies (full paths)", None, 'store_true', False),
             'dry-run-short': ("Print build overview incl. dependencies (short paths)", None, 'store_true', False, 'D'),
             'extended-dry-run': ("Print build environment and (expected) build procedure that will be performed",
@@ -639,6 +641,8 @@ class EasyBuildOptions(GeneralOption):
             'avail-repositories': ("Show all repository types (incl. non-usable)",
                                    None, "store_true", False,),
             'buildpath': ("Temporary build path", None, 'store', mk_full_default_path('buildpath')),
+            'bwrap-installpath': ("Bubblewrap install path for software and modules", None, 'store',
+                                  mk_full_default_path('bwrap_installpath')),
             'containerpath': ("Location where container recipe & image will be stored", None, 'store',
                               mk_full_default_path('containerpath')),
             'envvars-user-modules': ("List of environment variables that hold the base paths for which user-specific "
@@ -1322,8 +1326,8 @@ class EasyBuildOptions(GeneralOption):
             # prefix applies to selected path configuration options;
             # repository has to be reinitialised to take new repositorypath in account;
             # in the legacy-style configuration, repository is initialised in configuration file itself;
-            path_opts = ['buildpath', 'containerpath', 'installpath', 'packagepath', 'repository', 'repositorypath',
-                         'sourcepath', 'sourcepath_data']
+            path_opts = ['buildpath', 'bwrap_installpath', 'containerpath', 'installpath', 'packagepath',
+                         'repository', 'repositorypath', 'sourcepath', 'sourcepath_data']
             for dest in path_opts:
                 if not self.options._action_taken.get(dest, False):
                     if dest == 'repository':
