@@ -78,7 +78,7 @@ def set_bwrap_info(key, value):
 
 def update_bwrap_info(key, value):
     """
-    Update specified info w.r.t. use of bwrap
+    Update specified info w.r.t. use of bwrap (only supports 'set' values currently)
     """
     if key in _bwrap_info:
         current_value = _bwrap_info[key]
