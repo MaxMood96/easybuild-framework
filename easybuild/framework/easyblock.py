@@ -4682,14 +4682,12 @@ class EasyBlock:
             else:
                 original_perms = None
             try:
-                self.log.debug(f"Running test {test_cmd}")
-                try:
-                    run_shell_cmd(test_cmd)
-                finally:
-                    if original_perms is not None:
-                        adjust_permissions(test_cmd, original_perms, relative=False)
-            except BaseException as err:
+                run_shell_cmd(test_cmd)
+            except Exception as err:
                 raise EasyBuildError(f"Running test {test_cmd} failed: {err}")
+            finally:
+                if original_perms is not None:
+                    adjust_permissions(test_cmd, original_perms, relative=False)
 
     def update_config_template_run_step(self):
         """Update the the easyconfig template dictionary with easyconfig.TEMPLATE_NAMES_EASYBLOCK_RUN_STEP names"""
