@@ -4683,6 +4683,8 @@ class EasyBlock:
                 original_perms = None
             try:
                 run_shell_cmd(test_cmd)
+            except RunShellCmdError:
+                raise  # Let that propagate which will report more information
             except Exception as err:
                 raise EasyBuildError(f"Running test {test_cmd} failed: {err}")
             finally:

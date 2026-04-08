@@ -57,6 +57,7 @@ from easybuild.tools.filetools import adjust_permissions, change_dir, copy_dir, 
 from easybuild.tools.filetools import remove_dir, remove_file, symlink, verify_checksum, write_file
 from easybuild.tools.module_generator import module_generator
 from easybuild.tools.modules import EnvironmentModules, Lmod, reset_module_caches
+from easybuild.tools.run import RunShellCmdError
 from easybuild.tools.version import get_git_revision, this_is_easybuild
 
 
@@ -1323,13 +1324,13 @@ class EasyBlockTest(EnhancedTestCase):
         write_file(mock_test_bin_fail, "#!/bin/bash\necho 'Test case failure' && exit 1")
         eb.cfg['tests'] = [mock_test_bin_fail]
         write_file(eb.logfile, '')
-        self.assertRaisesRegex(EasyBuildError, f'Running test {mock_test_bin_fail} failed', eb.test_cases_step)
+        self.assertRaisesRegex(RunShellCmdError, f"'{os.path.basename(mock_test_bin_fail)}' failed", eb.test_cases_step)
         self.assertIn('Test case failure', read_file(eb.logfile))
 
         # Multiple tests
         eb.cfg['tests'] = [mock_test_bin, mock_test_bin_fail]
         write_file(eb.logfile, '')
-        self.assertRaisesRegex(EasyBuildError, f'Running test {mock_test_bin_fail} failed', eb.test_cases_step)
+        self.assertRaisesRegex(RunShellCmdError, f"'{os.path.basename(mock_test_bin_fail)}' failed", eb.test_cases_step)
         log_txt = read_file(eb.logfile)
         self.assertIn('Test case success', log_txt)
         self.assertIn('Test case failure', log_txt)
