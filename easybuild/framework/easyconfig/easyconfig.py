@@ -2329,6 +2329,9 @@ def process_easyconfig(path, build_specs=None, validate=True, parse_only=False, 
     if not build_specs:
         cache_key = (path, validate, hidden, parse_only)
         if cache_key in _easyconfigs_cache:
+            # Note: This does NOT copy EasyConfig instances but the dict containing an instance in the 'ec' key.
+            # So modifications to the `EasyConfig` instance will be shared.
+            # TODO: Implement proper (deep)-copy
             return [e.copy() for e in _easyconfigs_cache[cache_key]]
 
     easyconfigs = []
@@ -2354,6 +2357,9 @@ def process_easyconfig(path, build_specs=None, validate=True, parse_only=False, 
         easyconfigs.append(easyconfig)
 
     if cache_key is not None:
+        # Note: This does NOT copy EasyConfig instances but the dict containing an instance in the 'ec' key.
+        # So modifications to the `EasyConfig` instance will be shared.
+        # TODO: Implement proper (deep)-copy
         _easyconfigs_cache[cache_key] = [e.copy() for e in easyconfigs]
 
     return easyconfigs
