@@ -4893,7 +4893,7 @@ class ToyBuildTest(EnhancedTestCase):
         matches = regex.findall(logtxt)
         cnt = len(matches)
         # we expect to find 12 EasyConfig instances being created: gzip itself + full toolchain;
-        # note: multiple EasyConfig instances are currently reated for (sub)toolchains (like foss/2018a, gompi/2018a)
+        # note: multiple EasyConfig instances are currently created for (sub)toolchains (like foss/2018a, gompi/2018a)
         expected = 12
         error_msg = f"{cnt} EasyConfig instances created, expected {expected}:\n" + '\n'.join(matches)
         self.assertEqual(cnt, expected, error_msg)
