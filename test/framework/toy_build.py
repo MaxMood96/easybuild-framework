@@ -3678,9 +3678,6 @@ class ToyBuildTest(EnhancedTestCase):
             Parse Hook toy 0.0
             ['%(name)s-%(version)s.tar.gz']
             echo toy
-            Parse Hook toy 0.0
-            ['%(name)s-%(version)s.tar.gz']
-            echo toy
             installing 1 easyconfigs: toy/0.0
             starting installation of toy 0.0
             pre-configure: toy.source: True
