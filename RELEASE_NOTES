@@ -14,7 +14,6 @@ feature release
   - add support for ROCm-based toolchains (`rocm-compilers`, `rompi`, `rfbf`, `rfoss`) (#5099)
   - add (experimental) support for installing with bwrap (#5130)
 - bug fixes:
-  - make sure cached easyconfigs don't get modifed (#4818)
   - fix `check_checksums` when using templates, patch-dicts or `checksums.json` (#5021)
   - close stdout/stderr handles in `run_shell_cmd` and test teardown (#5050)
   - fix setting `$OMPI_MCA_rmaps_base_oversubscribe` in sanity check (#5123)
