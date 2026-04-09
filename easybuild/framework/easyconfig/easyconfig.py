@@ -666,6 +666,7 @@ class EasyConfig:
             validate = self.validation
 
         # create a new EasyConfig instance
+        self.log.info(f"Creating new EasyConfig instance for {self.path} while copying")
         ec = EasyConfig(self.path, validate=validate, hidden=self.hidden, rawtxt=self.rawtxt)
         # take a copy of the actual config dictionary (which already contains the extra options)
         ec._config = copy.deepcopy(self._config)
@@ -2337,6 +2338,7 @@ def process_easyconfig(path, build_specs=None, validate=True, parse_only=False, 
 
         # create easyconfig
         try:
+            _log.info(f"Creating EasyConfig instance for {spec}")
             ec = EasyConfig(spec, build_specs=build_specs, validate=validate, hidden=hidden)
         except EasyBuildError as err:
             try:
