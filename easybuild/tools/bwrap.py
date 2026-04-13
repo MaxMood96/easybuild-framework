@@ -116,9 +116,24 @@ def prepare_bwrap(bwrap_installpath):
     for mod in sorted(get_bwrap_info('modules_to_install')):
         installdir = os.path.join(os.path.realpath(installpath_software), mod)
         bwrap_installdir = os.path.join(bwrap_installpath, variables['subdir_software'], mod)
-        mkdir(installdir, parents=True)
+        use_overlayfs = False
+        try:
+            mkdir(installdir, parents=True)
+        except EasyBuildError:
+            # if we can't create the external installation directory, try to use overlayfs
+            use_overlayfs = True
         mkdir(bwrap_installdir, parents=True)
-        bwrap_cmd.extend(['--bind', bwrap_installdir, installdir])
+        if use_overlayfs:
+            bwrap_workdir = os.path.join(bwrap_installpath, 'workdir', mod)
+            mkdir(bwrap_workdir, parents=True)
+            # go up the tree until we find a directory that exists
+            while not os.path.exists(installdir):
+                installdir = os.path.dirname(installdir)
+                bwrap_installdir = os.path.dirname(bwrap_installdir)
+            opts = ['--overlay-src', installdir, '--overlay', bwrap_installdir, bwrap_workdir, installdir]
+        else:
+            opts = ['--bind', bwrap_installdir, installdir]
+        bwrap_cmd.extend(opts)
 
     set_bwrap_info('bwrap_cmd', bwrap_cmd)
     bwrap_cmd_str = ' '.join(bwrap_cmd)
