@@ -35,7 +35,7 @@ import os
 
 from easybuild.base import fancylogger
 from easybuild.tools.build_log import EasyBuildError, print_msg
-from easybuild.tools.config import install_path
+from easybuild.tools.config import install_path, ConfigurationVariables
 from easybuild.tools.filetools import mkdir, write_file
 from easybuild.tools.utilities import trace_msg
 
@@ -107,14 +107,15 @@ def prepare_bwrap(bwrap_installpath):
 
     set_bwrap_info('installpath_modules', install_path(typ='modules'))
 
-    bwrap_modules_installpath = os.path.join(bwrap_installpath, 'modules')
+    variables = ConfigurationVariables()
+    bwrap_modules_installpath = os.path.join(bwrap_installpath, variables['subdir_modules'])
 
     bwrap_cmd = ['bwrap', '--dev-bind', '/', '/']
 
     # bind mount all software directories
     for mod in sorted(get_bwrap_info('modules_to_install')):
         installdir = os.path.join(os.path.realpath(installpath_software), mod)
-        bwrap_installdir = os.path.join(bwrap_installpath, 'software', mod)
+        bwrap_installdir = os.path.join(bwrap_installpath, variables['subdir_software'], mod)
         mkdir(installdir, parents=True)
         mkdir(bwrap_installdir, parents=True)
         bwrap_cmd.extend(['--bind', bwrap_installdir, installdir])
