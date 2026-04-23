@@ -5242,7 +5242,7 @@ class CommandLineOptionsTest(EnhancedTestCase):
             self.assertErrorRegex(EasyBuildError, error_msg, self.eb_main, args, do_build=True, raise_error=True)
 
     def test_show_config(self):
-        """"Test --show-config and --show-full-config."""
+        """Test --show-config and --show-full-config."""
 
         # only retain $EASYBUILD_* environment variables we expect for this test
         retained_eb_env_vars = [
