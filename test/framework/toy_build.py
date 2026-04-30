@@ -3221,20 +3221,20 @@ class ToyBuildTest(EnhancedTestCase):
                                num_checked=None):
             if num_checked is not None:
                 num_checked_str = r"Number of CUDA files checked: %s" % num_checked
-                assert_regex(num_checked_str, outtxt, stdout)
+                assert_regex(num_checked_str, log, stdout)
             if missing_cc_but_ptx is not None:
                 missing_cc_but_ptx_str = r"Number of files missing one or more CUDA Compute Capabilities, but having "
                 missing_cc_but_ptx_str += r"suitable PTX code that can be JIT compiled for the requested CUDA Compute "
                 missing_cc_but_ptx_str += r"Capabilities: %s" % additional_cc
-                assert_regex(missing_cc_but_ptx_str, outtxt, stdout)
+                assert_regex(missing_cc_but_ptx_str, log, stdout)
             missing_cc_str = r"Number of files missing one or more CUDA Compute Capabilities: %s" % missing_cc
             additional_cc_str = r"Number of files with device code for more CUDA Compute Capabilities than requested: "
             additional_cc_str += r"%s" % additional_cc
             missing_ptx_str = r"Number of files missing PTX code for the highest configured CUDA Compute Capability: "
             missing_ptx_str += r"%s" % missing_ptx
-            assert_regex(missing_cc_str, outtxt, stdout)
-            assert_regex(additional_cc_str, outtxt, stdout)
-            assert_regex(missing_ptx_str, outtxt, stdout)
+            assert_regex(missing_cc_str, log, stdout)
+            assert_regex(additional_cc_str, log, stdout)
+            assert_regex(missing_ptx_str, log, stdout)
 
         # Test case 1a: test with default options, --cuda-compute-capabilities=8.0 and a binary that contains
         # 8.0 device code
