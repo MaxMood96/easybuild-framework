@@ -3087,6 +3087,8 @@ class ToyBuildTest(EnhancedTestCase):
             "    'cp %s %s/pytoy-cuda.cpython-39-x86_64-linux-gnu.%s'," % (toy_bin, py_site_pkgs, shlib_ext),
             "    'cp %s %s/plugins/libpytoy_cuda.%s'," % (toy_bin, py_site_pkgs, shlib_ext),
             "]",
+            "exts_list = [('bar', '0.0')]",
+            "exts_defaultclass = 'DummyExtension'",
         ])
         write_file(toy_ec_cuda, toy_ec_txt)
 
@@ -3235,7 +3237,7 @@ class ToyBuildTest(EnhancedTestCase):
         with self.mocked_stdout_stderr():
             outtxt = self._test_toy_build(ec_file=toy_ec_cuda, extra_args=args, raise_error=True)
             stdout = self.get_stdout()
-        assert_cuda_report(missing_cc=0, additional_cc=0, missing_ptx=3, log=outtxt, stdout=stdout)
+        assert_cuda_report(missing_cc=0, additional_cc=0, missing_ptx=4, log=outtxt, stdout=stdout)
 
         # Test case 1b: test with default options, --cuda-compute-capabilities=8.0 and a binary that contains
         # 7.0 and 9.0 device code and 8.0 PTX code.
@@ -3256,13 +3258,13 @@ class ToyBuildTest(EnhancedTestCase):
             stdout = self.get_stdout()
         self.assertIn(device_additional_70_90_code_msg, outtxt)
         self.assertIn(device_missing_80_code_msg, outtxt)
-        assert_cuda_report(missing_cc=3, additional_cc=3, missing_ptx=0, log=outtxt, stdout=stdout)
+        assert_cuda_report(missing_cc=4, additional_cc=4, missing_ptx=0, log=outtxt, stdout=stdout)
 
         # Test case 2: same as Test case 1, but add --cuda-sanity-check-error-on-failed-checks
         # This is expected to fail since there is missing device code for CC80
         args = ['--cuda-compute-capabilities=8.0', '--cuda-sanity-check-error-on-failed-checks']
         # We expect this to fail, so first check error, then run again to check output
-        error_pattern = r"Files missing CUDA device code: 3."
+        error_pattern = r"Files missing CUDA device code: 4."
         with self.mocked_stdout_stderr():
             self.assertErrorRegex(EasyBuildError, error_pattern, self._test_toy_build, ec_file=toy_ec_cuda,
                                   extra_args=args, raise_error=True)
@@ -3270,7 +3272,7 @@ class ToyBuildTest(EnhancedTestCase):
             stdout = self.get_stdout()
         self.assertIn(device_additional_70_90_code_msg, outtxt)
         self.assertIn(device_missing_80_code_msg, outtxt)
-        assert_cuda_report(missing_cc=3, additional_cc=3, missing_ptx=0, log=outtxt, stdout=stdout)
+        assert_cuda_report(missing_cc=4, additional_cc=4, missing_ptx=0, log=outtxt, stdout=stdout)
 
         # Test case 3: same as Test case 2, but add --cuda-sanity-check-accept-ptx-as-devcode
         # This is expected to succeed, since now the PTX code for CC80 will be accepted as
@@ -3284,14 +3286,14 @@ class ToyBuildTest(EnhancedTestCase):
             stdout = self.get_stdout()
         self.assertIn(device_additional_70_90_code_msg, outtxt)
         self.assertIn(device_missing_80_code_msg, outtxt)
-        assert_cuda_report(missing_cc=0, additional_cc=3, missing_ptx=0, log=outtxt, stdout=stdout,
-                           missing_cc_but_ptx=3)
+        assert_cuda_report(missing_cc=0, additional_cc=4, missing_ptx=0, log=outtxt, stdout=stdout,
+                           missing_cc_but_ptx=4)
 
         # Test case 4: same as Test case 2, but run with --cuda-compute-capabilities=9.0
         # This is expected to fail: device code is present, but PTX code for the highest CC (9.0) is missing
         args = ['--cuda-compute-capabilities=9.0', '--cuda-sanity-check-error-on-failed-checks']
         # We expect this to fail, so first check error, then run again to check output
-        error_pattern = r"Files missing CUDA PTX code: 3"
+        error_pattern = r"Files missing CUDA PTX code: 4"
         with self.mocked_stdout_stderr():
             self.assertErrorRegex(EasyBuildError, error_pattern, self._test_toy_build, ec_file=toy_ec_cuda,
                                   extra_args=args, raise_error=True)
@@ -3299,7 +3301,7 @@ class ToyBuildTest(EnhancedTestCase):
             stdout = self.get_stdout()
         self.assertIn(device_additional_70_code_msg, outtxt)
 
-        assert_cuda_report(missing_cc=0, additional_cc=3, missing_ptx=3, log=outtxt, stdout=stdout)
+        assert_cuda_report(missing_cc=0, additional_cc=4, missing_ptx=4, log=outtxt, stdout=stdout)
 
         # Test case 5: same as Test case 4, but add --cuda-sanity-check-accept-missing-ptx
         # This is expected to succeed: device code is present, PTX code is missing, but that's accepted
@@ -3314,7 +3316,7 @@ class ToyBuildTest(EnhancedTestCase):
             stdout = self.get_stdout()
         self.assertIn(device_additional_70_code_msg, outtxt)
         self.assertRegex(outtxt, warning_pattern)
-        assert_cuda_report(missing_cc=0, additional_cc=3, missing_ptx=3, log=outtxt, stdout=stdout)
+        assert_cuda_report(missing_cc=0, additional_cc=4, missing_ptx=4, log=outtxt, stdout=stdout)
 
         # Test case 6: same as Test case 5, but add --cuda-sanity-check-strict
         # This is expected to fail: device code is present, PTX code is missing (but accepted due to option)
@@ -3322,14 +3324,14 @@ class ToyBuildTest(EnhancedTestCase):
         args = ['--cuda-compute-capabilities=9.0', '--cuda-sanity-check-error-on-failed-checks',
                 '--cuda-sanity-check-accept-missing-ptx', '--cuda-sanity-check-strict']
         # We expect this to fail, so first check error, then run again to check output
-        error_pattern = r"Files with additional CUDA device code: 3"
+        error_pattern = r"Files with additional CUDA device code: 4"
         with self.mocked_stdout_stderr():
             self.assertErrorRegex(EasyBuildError, error_pattern, self._test_toy_build, ec_file=toy_ec_cuda,
                                   extra_args=args, raise_error=True)
             outtxt = self._test_toy_build(ec_file=toy_ec_cuda, extra_args=args, raise_error=False, verify=False)
             stdout = self.get_stdout()
         self.assertIn(device_additional_70_code_msg, outtxt)
-        assert_cuda_report(missing_cc=0, additional_cc=3, missing_ptx=3, log=outtxt, stdout=stdout)
+        assert_cuda_report(missing_cc=0, additional_cc=4, missing_ptx=4, log=outtxt, stdout=stdout)
 
         # Test case 7: same as Test case 6, but add the failing file to the cuda_sanity_ignore_files
         # This is expected to succeed: the individual file which _would_ cause the sanity check to fail is
