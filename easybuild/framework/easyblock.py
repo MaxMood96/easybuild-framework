@@ -4183,8 +4183,10 @@ class EasyBlock:
                 paths = {}
                 for key in path_keys_and_check:
                     paths.setdefault(key, [])
-                paths.update({SANITY_CHECK_PATHS_DIRS: ['bin', ('lib', 'lib64')]})
-                self.log.info("Using default sanity check paths: %s", paths)
+                # Default paths for extensions are handled in the parent easyconfig if desired
+                if not self.is_extension:
+                    paths.update({SANITY_CHECK_PATHS_DIRS: ['bin', ('lib', 'lib64')]})
+                    self.log.info("Using default sanity check paths: %s", paths)
 
             # if enhance_sanity_check is enabled *and* sanity_check_paths are specified in the easyconfig,
             # those paths are used to enhance the paths provided by the easyblock
@@ -4204,9 +4206,11 @@ class EasyBlock:
         # verify sanity_check_paths value: only known keys, correct value types, at least one non-empty value
         only_list_values = all(isinstance(x, list) for x in paths.values())
         only_empty_lists = all(not x for x in paths.values())
-        if sorted_keys != known_keys or not only_list_values or only_empty_lists:
+        if sorted_keys != known_keys or not only_list_values or (only_empty_lists and not self.is_extension):
             error_msg = "Incorrect format for sanity_check_paths: should (only) have %s keys, "
-            error_msg += "values should be lists (at least one non-empty)."
+            error_msg += "values should be lists"
+            if not self.is_extension:
+                error_msg += " (at least one non-empty)."
             raise EasyBuildError(error_msg % ', '.join("'%s'" % k for k in known_keys))
 
         # Resolve arch specific entries
