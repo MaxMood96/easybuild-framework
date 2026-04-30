@@ -194,8 +194,7 @@ class ExtensionEasyBlock(EasyBlock, Extension):
 
         if custom_paths or custom_commands or not self.is_extension:
             super().sanity_check_step(custom_paths=custom_paths,
-                                      custom_commands=custom_commands,
-                                      extension=self.is_extension)
+                                      custom_commands=custom_commands)
 
         # pass or fail sanity check
         if sanity_check_ok:
