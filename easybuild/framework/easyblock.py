@@ -4439,20 +4439,21 @@ class EasyBlock:
             else:
                 self._sanity_check_step_extensions()
 
-        linked_shared_lib_fails = self.sanity_check_linked_shared_libs()
-        if linked_shared_lib_fails:
-            self.log.warning("Check for required/banned linked shared libraries failed!")
-            self.sanity_check_fail_msgs.append(linked_shared_lib_fails)
+            # Do not do those checks for extensions, only in the main easyconfig
+            linked_shared_lib_fails = self.sanity_check_linked_shared_libs()
+            if linked_shared_lib_fails:
+                self.log.warning("Check for required/banned linked shared libraries failed!")
+                self.sanity_check_fail_msgs.append(linked_shared_lib_fails)
 
-        # software installed with GCCcore toolchain should not have Fortran module files (.mod),
-        # unless that's explicitly allowed
-        if self.toolchain.name in ('GCCcore',) and not self.cfg['skip_mod_files_sanity_check']:
-            mod_files_found_msg = self.sanity_check_mod_files()
-            if mod_files_found_msg:
-                if build_option('fail_on_mod_files_gcccore'):
-                    self.sanity_check_fail_msgs.append(mod_files_found_msg)
-                else:
-                    print_warning(mod_files_found_msg)
+            # software installed with GCCcore toolchain should not have Fortran module files (.mod),
+            # unless that's explicitly allowed
+            if self.toolchain.name in ('GCCcore',) and not self.cfg['skip_mod_files_sanity_check']:
+                mod_files_found_msg = self.sanity_check_mod_files()
+                if mod_files_found_msg:
+                    if build_option('fail_on_mod_files_gcccore'):
+                        self.sanity_check_fail_msgs.append(mod_files_found_msg)
+                    else:
+                        print_warning(mod_files_found_msg)
 
         # cleanup
         if self.fake_mod_data:
