@@ -85,7 +85,7 @@ from easybuild.tools.build_details import get_build_stats
 from easybuild.tools.build_log import EasyBuildError, EasyBuildExit, dry_run_msg, dry_run_warning, dry_run_set_dirs
 from easybuild.tools.build_log import print_error_and_exit, print_msg, print_warning
 from easybuild.tools.config import CHECKSUM_PRIORITY_JSON, DEFAULT_ENVVAR_USERS_MODULES
-from easybuild.tools.config import EASYBUILD_SOURCES_URL, EBPYTHONPREFIXES  # noqa
+from easybuild.tools.config import EASYBUILD_SOURCES_URL, EBPYTHONPREFIXES  # noqa # pylint:disable=unused-import
 from easybuild.tools.config import FORCE_DOWNLOAD_ALL, FORCE_DOWNLOAD_PATCHES, FORCE_DOWNLOAD_SOURCES
 from easybuild.tools.config import MOD_SEARCH_PATH_HEADERS, PYTHONPATH, SEARCH_PATH_BIN_DIRS, SEARCH_PATH_LIB_DIRS
 from easybuild.tools.config import build_option, build_path, get_failed_install_build_dirs_path
@@ -4342,8 +4342,11 @@ class EasyBlock:
                                          f'Should be: {self.is_extension}, got:  {extension}')
         del extension  # Avoid accidental use
 
+        if self.is_extension:
+            return self.fake_mod_data
+
         # skip loading of fake module when using --sanity-check-only, load real module instead
-        if build_option('sanity_check_only') and not self.is_extension:
+        if build_option('sanity_check_only'):
             self.log.info("Loading real module for %s %s: %s", self.name, self.version, self.short_mod_name)
             self.load_module(extra_modules=extra_modules)
             self.sanity_check_module_loaded = True
