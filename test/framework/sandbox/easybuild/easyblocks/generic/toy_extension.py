@@ -44,6 +44,7 @@ class Toy_Extension(ExtensionEasyBlock):
         """Custom easyconfig parameters for toy extensions."""
         extra_vars = {
             'toy_ext_param': ['', "Toy extension parameter", CUSTOM],
+            'toy_custom_sanity_check_cmds': [None, "Optional list of custom command to run in sanity check", CUSTOM],
         }
         return ExtensionEasyBlock.extra_options(extra_vars=extra_vars)
 
@@ -112,4 +113,5 @@ class Toy_Extension(ExtensionEasyBlock):
         }
         if self.src:
             custom_paths['files'].extend(['bin/%s' % self.name, 'lib/lib%s.a' % self.name])
-        return super().sanity_check_step(custom_paths=custom_paths)
+        return super().sanity_check_step(custom_paths=custom_paths,
+                                         custom_commands=self.cfg['toy_custom_sanity_check_cmds'])

@@ -2494,6 +2494,35 @@ class ToyBuildTest(EnhancedTestCase):
         regex = re.compile('^.*/eb-[^/]+/eb-sanity-check-[^/]+\n[ ]*0$')
         self.assertTrue(regex.match(out_txt), f"Pattern '{regex.pattern}' should match in: {out_txt}")
 
+    def test_toy_extension_sanity_check(self):
+        """Check sanity check for extensions:
+        Custom_commands from easyblocks are run."""
+        test_ec_txt = TOY_EC_TXT
+        test_ec_txt += '\n' + textwrap.dedent("""
+            exts_list = [
+                ('barbar', '0.0', {
+                    'exts_filter': ('ls -l lib/lib%(ext_name)s.a', ''),
+                    'toy_custom_sanity_check_cmds': ['echo "Run-Custom-Cmd for %(name)s" && false'],
+                    'sanity_check_paths': {'dirs': [], 'files': ['lib/libbarbar.a']},
+                })
+            ]
+        """)
+        test_ec = os.path.join(self.test_prefix, 'test.eb')
+        write_file(test_ec, test_ec_txt)
+        error_pattern = 'sanity check command echo "Run-Custom-Cmd for barbar" && false failed with exit code 1'
+        with self.mocked_stdout_stderr():
+            self.assertErrorRegex(EasyBuildError, error_pattern, self._test_toy_build, ec_file=test_ec,
+                                  raise_error=True, verbose=False)
+
+        test_ec_txt += (
+            "\nexts_list[0][2]['toy_custom_sanity_check_cmds'] = ['echo \"Run-Custom-Cmd for %(name)s\" && true']"
+        )
+        write_file(test_ec, test_ec_txt)
+        with self.mocked_stdout_stderr(), self.log_to_testlogfile() as logfile:
+            self._test_toy_build(ec_file=test_ec, raise_error=True)
+            logtxt = read_file(logfile)
+        self.assertRegex(logtxt, 'sanity check command .*Run-Custom-Cmd for barbar.*ran successfully',)
+
     def test_sanity_check_paths_lib64(self):
         """Test whether fallback in sanity check for lib64/ equivalents of library files works."""
         # modify test easyconfig: move lib/libtoy.a to lib64/libtoy.a
