@@ -3238,6 +3238,8 @@ class ToyBuildTest(EnhancedTestCase):
             outtxt = self._test_toy_build(ec_file=toy_ec_cuda, extra_args=args, raise_error=True)
             stdout = self.get_stdout()
         assert_cuda_report(missing_cc=0, additional_cc=0, missing_ptx=4, log=outtxt, stdout=stdout)
+        self.assertEqual(outtxt.count("CUDA sanity check summary report"), 1,
+                         "CUDA sanity check should be done exactly once")
 
         # Test case 1b: test with default options, --cuda-compute-capabilities=8.0 and a binary that contains
         # 7.0 and 9.0 device code and 8.0 PTX code.

@@ -4455,32 +4455,32 @@ class EasyBlock:
                     else:
                         print_warning(mod_files_found_msg)
 
+            if self.toolchain.use_rpath:
+                rpath_fails = self.sanity_check_rpath()
+                if rpath_fails:
+                    self.log.warning("RPATH sanity check failed!")
+                    self.sanity_check_fail_msgs.extend(rpath_fails)
+            else:
+                self.log.debug("Skipping RPATH sanity check")
+
+            if 'CUDA' in [dep['name'] for dep in self.cfg.dependencies()]:
+                if shutil.which('cuobjdump'):
+                    cuda_fails = self.sanity_check_cuda()
+                    if cuda_fails:
+                        self.log.warning("CUDA device code sanity check failed!")
+                        self.sanity_check_fail_msgs.extend(cuda_fails)
+                else:
+                    msg = "Failed to execute CUDA sanity check: cuobjdump not found\n"
+                    msg += "CUDA module must be loaded for sanity check (or cuobjdump available in PATH)"
+                    raise EasyBuildError(msg)
+            else:
+                self.log.debug("Skipping CUDA sanity check: CUDA is not in dependencies")
+
         # cleanup
         if self.fake_mod_data:
             self.clean_up_fake_module(self.fake_mod_data)
             self.sanity_check_module_loaded = False
             self.fake_mod_data = None
-
-        if self.toolchain.use_rpath:
-            rpath_fails = self.sanity_check_rpath()
-            if rpath_fails:
-                self.log.warning("RPATH sanity check failed!")
-                self.sanity_check_fail_msgs.extend(rpath_fails)
-        else:
-            self.log.debug("Skipping RPATH sanity check")
-
-        if 'CUDA' in [dep['name'] for dep in self.cfg.dependencies()]:
-            if shutil.which('cuobjdump'):
-                cuda_fails = self.sanity_check_cuda()
-                if cuda_fails:
-                    self.log.warning("CUDA device code sanity check failed!")
-                    self.sanity_check_fail_msgs.extend(cuda_fails)
-            else:
-                msg = "Failed to execute CUDA sanity check: cuobjdump not found\n"
-                msg += "CUDA module must be loaded for sanity check (or cuobjdump available in PATH)"
-                raise EasyBuildError(msg)
-        else:
-            self.log.debug("Skipping CUDA sanity check: CUDA is not in dependencies")
 
         # pass or fail
         if self.sanity_check_fail_msgs:
