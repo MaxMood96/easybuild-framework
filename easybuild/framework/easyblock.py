@@ -218,7 +218,7 @@ class EasyBlock:
         self.skip = None
         self.module_extra_extensions = ''  # extra stuff for module file required by extensions
 
-        # indicates whether or not this instance represents an extension or not;
+        # indicates whether or not this instance represents an extension
         # may be set to True by ExtensionEasyBlock
         self.is_extension = False
 
@@ -684,11 +684,10 @@ class EasyBlock:
                         'version': ext_version,
                         'options': ext_options,
                         'github_account': ext_options.get('github_account', orig_github_account),
+                        # if a particular easyblock is specified, make sure it's used
+                        # (this is picked up by init_ext_instances)
+                        'easyblock': ext_options.get('easyblock', None),
                     }
-
-                    # if a particular easyblock is specified, make sure it's used
-                    # (this is picked up by init_ext_instances)
-                    ext_src['easyblock'] = ext_options.get('easyblock', None)
 
                     # construct dictionary with template values;
                     # inherited from parent, except for name/version templates which are specific to this extension
@@ -1142,14 +1141,14 @@ class EasyBlock:
     @property
     def name(self):
         """
-        Shortcut the get the module name.
+        Shortcut to get the module name.
         """
         return self.cfg['name']
 
     @property
     def version(self):
         """
-        Shortcut the get the module version.
+        Shortcut to get the module version.
         """
         return self.cfg['version']
 
@@ -1863,7 +1862,7 @@ class EasyBlock:
                 msg += f"and paths='{env_var}'"
                 self.log.debug(msg)
 
-    def expand_module_search_path(self, search_path, path_type=ModEnvVarType.PATH_WITH_FILES):
+    def expand_module_search_path(self, *_, **__):
         """
         REMOVED in EasyBuild 5.1, use EasyBlock.module_load_environment.expand_paths instead
         """
