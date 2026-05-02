@@ -2012,6 +2012,11 @@ class EasyBlock:
             else:
                 exts_list.append((resolve_template(ext[0], self.cfg.template_values),
                                   resolve_template(ext[1], self.cfg.template_values)))
+
+        formatter = self.cfg.get('exts_formatter')
+        if formatter:
+            exts_list = [(formatter(x), y) for (x, y) in exts_list]
+
         return exts_list
 
     def prepare_for_extensions(self):
