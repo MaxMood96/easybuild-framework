@@ -1991,7 +1991,7 @@ class EasyBlock:
             exts_list = sorted(exts_list, key=str.lower)
         return ext_sep.join(exts_list)
 
-    def make_extension_list(self):
+    def make_extension_list(self, formatted=True):
         """
         Return a list of extension names and their versions included in this installation
 
@@ -2013,9 +2013,10 @@ class EasyBlock:
                 exts_list.append((resolve_template(ext[0], self.cfg.template_values),
                                   resolve_template(ext[1], self.cfg.template_values)))
 
-        formatter = self.cfg.get('exts_formatter')
-        if formatter:
-            exts_list = [(formatter(x), y) for (x, y) in exts_list]
+        if formatted:
+            formatter = self.cfg.get('exts_formatter')
+            if formatter:
+                exts_list = [(formatter(x), y) for (x, y) in exts_list]
 
         return exts_list
 
