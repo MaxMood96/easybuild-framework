@@ -266,8 +266,9 @@ class RunTest(EnhancedTestCase):
         cmd_script = os.path.join(cmd_tmpdir, 'cmd.sh')
         self.assertExists(cmd_script)
 
-        cmd = f"{cmd_script} -c "
-        cmd += "'echo pwd: $PWD; echo bash_env: $BASH_ENV; echo $FOOBAR; echo $EB_CMD_OUT_FILE; cat $EB_CMD_OUT_FILE'"
+        cmd = f"{cmd_script} -c '"
+        cmd += 'echo pwd: $PWD; echo "bash_env: $BASH_ENV"; echo $FOOBAR; echo $EB_CMD_OUT_FILE; cat $EB_CMD_OUT_FILE'
+        cmd += "'"
         with self.mocked_stdout_stderr():
             res = run_shell_cmd(cmd, fail_on_error=False)
         self.assertEqual(res.exit_code, 0)
