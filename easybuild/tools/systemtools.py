@@ -478,7 +478,8 @@ def get_cpu_arch_name(show_warning=True):
     if cpu_arch_name is None:
         if show_warning and not HAVE_ARCHSPEC:
             print_warning("Could not detect CPU architecture name which may affect functionality. "
-                          "Please install the 'archspec' Python package into the same Python environment as EasyBuild.")
+                          "Please install the 'archspec' Python package into the same Python environment as EasyBuild.",
+                          log=_log)
         cpu_arch_name = UNKNOWN
 
     return cpu_arch_name
