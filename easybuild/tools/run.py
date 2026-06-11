@@ -67,7 +67,7 @@ from easybuild.tools.build_log import dry_run_msg, time_str_since
 from easybuild.tools.config import build_option
 from easybuild.tools.hooks import RUN_SHELL_CMD, load_hooks, run_hook
 from easybuild.tools.output import COLOR_RED, COLOR_YELLOW, colorize, escape_for_rich, print_error
-from easybuild.tools.utilities import trace_msg
+from easybuild.tools.utilities import capitalize_first_letter, trace_msg
 
 
 _log = fancylogger.getLogger('run', fname=False)
@@ -637,14 +637,14 @@ def run_shell_cmd(cmd, fail_on_error=True, split_stderr=False, stdin=None, env=N
     else:
         log_msg = f"Output (stdout + stderr):\n{res.output}"
 
-    short_cmd_msg_cap = short_cmd_msg[:1].upper() + short_cmd_msg[1:]  # capitalize first letter
+    cmd_status_msg = capitalize_first_letter(short_cmd_msg if stream_output or qa_patterns else cmd_type_msg)
     if res.exit_code == EasyBuildExit.SUCCESS:
-        msg = f"{short_cmd_msg_cap} completed successfully"
+        msg = f"{cmd_status_msg} completed successfully"
         if log_output_on_success:
             msg += f'\n{log_msg}'
         _log.info(msg)
     else:
-        _log.warning(f"{short_cmd_msg_cap} FAILED (exit code {res.exit_code})\n{log_msg}")
+        _log.warning(f"{cmd_status_msg} FAILED (exit code {res.exit_code})\n{log_msg}")
         if fail_on_error:
             raise_run_shell_cmd_error(res)
 
@@ -654,13 +654,14 @@ def run_shell_cmd(cmd, fail_on_error=True, split_stderr=False, stdin=None, env=N
         os.getcwd()
     except FileNotFoundError:
         _log.warning(
-            f"{short_cmd_msg_cap} completed successfully but left the system in an unknown working directory. "
+            f"{capitalize_first_letter(cmd_type_msg)} completed successfully "
+            "but left the system in an unknown working directory. "
             f"Changing back to initial working directory: {initial_work_dir}"
         )
         try:
             os.chdir(initial_work_dir)
         except OSError as err:
-            raise EasyBuildError(f"Failed to return to {initial_work_dir} after executing {short_cmd_msg}: {err}")
+            raise EasyBuildError(f"Failed to return to {initial_work_dir} after executing {cmd_type_msg}: {err}")
 
     if not hidden:
         time_since_start = time_str_since(start_time)

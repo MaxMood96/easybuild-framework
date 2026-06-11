@@ -494,7 +494,7 @@ class RunTest(EnhancedTestCase):
         os.close(fd)
 
         regex_start_cmd = re.compile(r"Running shell command in .*:\n\techo hello", re.M)
-        regex_cmd_exit = re.compile(r"Shell command 'echo ...' completed successfully")
+        regex_cmd_exit = re.compile(r"Shell command completed successfully")
         regex_cmd_output = re.compile(r"Output \(stdout \+ stderr\):\nhello", re.M)
 
         # command output is logged
@@ -2297,7 +2297,7 @@ class RunTest(EnhancedTestCase):
         )
 
         error_pattern = rf"Failed to return to .*/{os.path.basename(self.test_prefix)}/workdir "
-        error_pattern += r"after executing shell command 'echo ...'"
+        error_pattern += r"after executing shell command"
 
         mkdir(workdir, parents=True)
         with self.mocked_stdout_stderr():
