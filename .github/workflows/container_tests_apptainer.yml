@@ -15,7 +15,7 @@ jobs:
     strategy:
       matrix:
         python: [3.9]
-        apptainer: [1.0.0, 1.1.7, 1.3.6, 1.5.1]
+        apptainer: [1.0.0, 1.3.6, 1.5.1]
       fail-fast: false
     steps:
     - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # 6.0.3
