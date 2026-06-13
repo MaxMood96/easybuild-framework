@@ -5166,25 +5166,25 @@ class CommandLineOptionsTest(EnhancedTestCase):
         # note: we frequently need to change to a more recent PR here,
         #       to avoid that this test starts failing because commit status is set to None for old commits
         del args[-1]
-        # easyconfig PR for EasyBuild v5.0.0
-        args[1] = '22405'
+        # easyconfig PR for EasyBuild v5.2.1
+        args[1] = '25373'
 
         stdout, stderr = self._run_mock_eb(args, do_build=True, raise_error=True, testing=False)
 
         expected_stdout = '\n'.join([
-            "Checking eligibility of easybuilders/easybuild-easyconfigs PR #22405 for merging...",
+            "Checking eligibility of easybuilders/easybuild-easyconfigs PR #25373 for merging...",
             "* targets develop branch: OK",
             "* test suite passes: OK",
             "* last test report is successful: OK",
             "* no pending change requests: OK",
-            "* approved review: OK (by verdurin)",
-            "* milestone is set: OK (5.0.0)",
+            "* approved review: OK (by bedroge)",
+            "* milestone is set: OK (5.3.0)",
             "* mergeable state is clean: PR is already merged",
             '',
             "Review OK, merging pull request!",
             '',
-            "[DRY RUN] Adding comment to easybuild-easyconfigs issue #22405: 'Going in, thanks @PetrKralCZ!'",
-            "[DRY RUN] Merged easybuilders/easybuild-easyconfigs pull request #22405",
+            "[DRY RUN] Adding comment to easybuild-easyconfigs issue #25373: 'Going in, thanks @boegel!'",
+            "[DRY RUN] Merged easybuilders/easybuild-easyconfigs pull request #25373",
         ])
         expected_stderr = ''
         self.assertEqual(stderr.strip(), expected_stderr)
