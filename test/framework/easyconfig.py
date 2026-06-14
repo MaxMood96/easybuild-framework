@@ -3747,6 +3747,7 @@ class EasyConfigTest(EnhancedTestCase):
                 self.assertRegex(arch, arch_regex)
 
                 self.assertNotIn('perlver', res, "Perl should be filtered out")
+
                 self.assertEqual(res, expected)
 
         # also check result of template_constant_dict when dict representing extension is passed
