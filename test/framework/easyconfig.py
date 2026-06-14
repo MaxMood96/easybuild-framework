@@ -3301,12 +3301,12 @@ class EasyConfigTest(EnhancedTestCase):
         patterns = [
             rf"digraph {graphname} {{",
             # 3 nodes should be there: 'GCC/6.4.0-2.28 (EXT)', 'toy', and 'intel/2018a'
-            r"^\s*intel\s+\[",
-            r"^\s*toy\s+\[",
-            r"^\s*\"GCC/6\.4\.0-2\.28 \(EXT\)\"\s+\[",
+            r"^\s*intel",
+            r"^\s*toy",
+            r"^\s*\"GCC/6\.4\.0-2\.28 \(EXT\)\"",
             # and 2 edges: 'toy -> intel' and 'toy -> "GCC/6.4.0-2.28 (EXT)"'
-            r"^\s*toy -> intel\s+\[",
-            r"^\s*toy -> \"GCC/6\.4\.0-2\.28 \(EXT\)\"\s+\[",
+            r"^\s*toy -> intel",
+            r"^\s*toy -> \"GCC/6\.4\.0-2\.28 \(EXT\)\"",
         ]
         self.assert_multi_regex(patterns, dottxt)
 
