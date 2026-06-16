@@ -1573,10 +1573,10 @@ class EasyBlockTest(EnhancedTestCase):
             eb.extensions_step(fetch=True)
             stdout = self.get_stdout()
         logtxt = read_file(eb.logfile)
-        regexs = [r'Running .* shell command in .*:\n\sif \[ %s' % ext for ext in ['ext1', 'ext_2', 'real_ext']]
+        regexs = [r'Running shell command in .*:\n\sif \[ %s' % ext for ext in ['ext1', 'ext_2', 'real_ext']]
         self.assert_multi_regex(regexs, logtxt)
         # modulename: False skips the check
-        self.assertNotRegex(logtxt, r"Running .* shell command in .*:\n\sif \[ (False|ext4)")
+        self.assertNotRegex(logtxt, r"Running shell command .* in .*:\n\sif \[ (False|ext4)")
 
         patterns = [
             r"^== skipping extension EXT-2",
