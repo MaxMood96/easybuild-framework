@@ -37,6 +37,7 @@ import tempfile
 import textwrap
 from itertools import product
 from unittest import TextTestRunner
+from test.framework import TEST_ECS_DIR, TEST_MODULES_DIR, TOY_EC, TOY_EC_TXT
 from test.framework.utilities import EnhancedTestCase, TestLoaderFiltered, find_full_path, init_config
 
 import easybuild.tools.modules as modules
@@ -92,8 +93,7 @@ class ToolchainTest(EnhancedTestCase):
 
     def test_toolchain(self):
         """Test whether toolchain is initialized correctly."""
-        test_ecs = os.path.join('test', 'framework', 'easyconfigs', 'test_ecs')
-        ec_file = find_full_path(os.path.join(test_ecs, 'g', 'gzip', 'gzip-1.4-GCC-4.9.3-2.26.eb'))
+        ec_file = find_full_path(os.path.join(TEST_ECS_DIR, 'g', 'gzip', 'gzip-1.4-GCC-4.9.3-2.26.eb'))
         ec = EasyConfig(ec_file, validate=False)
         tc = ec.toolchain
         self.assertIn('debug', tc.options)
@@ -860,8 +860,7 @@ class ToolchainTest(EnhancedTestCase):
 
     def test_easyconfig_optarch_flags(self):
         """Test whether specifying optarch flags in the easyconfigs works."""
-        topdir = os.path.dirname(os.path.abspath(__file__))
-        eb_file = os.path.join(topdir, 'easyconfigs', 'test_ecs', 't', 'toy', 'toy-0.0-gompi-2018a.eb')
+        eb_file = os.path.join(TEST_ECS_DIR, 't', 'toy', 'toy-0.0-gompi-2018a.eb')
 
         test_ec = os.path.join(self.test_prefix, 'test.eb')
         toy_txt = read_file(eb_file)
@@ -2424,11 +2423,8 @@ class ToolchainTest(EnhancedTestCase):
 
     def test_compiler_cache(self):
         """Test ccache"""
-        topdir = os.path.dirname(os.path.abspath(__file__))
-        eb_file = os.path.join(topdir, 'easyconfigs', 'test_ecs', 't', 'toy', 'toy-0.0.eb')
-
         args = [
-            eb_file,
+            TOY_EC,
             "--use-ccache=%s" % os.path.join(self.test_prefix, 'ccache'),
             "--force",
             "--debug",
@@ -3346,8 +3342,7 @@ class ToolchainTest(EnhancedTestCase):
         tmp_modules = os.path.join(self.test_prefix, 'modules')
         mkdir(tmp_modules)
 
-        test_dir = os.path.abspath(os.path.dirname(__file__))
-        copy_dir(os.path.join(test_dir, 'modules', 'OpenMPI'), os.path.join(tmp_modules, 'OpenMPI'))
+        copy_dir(os.path.join(TEST_MODULES_DIR, 'OpenMPI'), os.path.join(tmp_modules, 'OpenMPI'))
 
         openmpi_module = os.path.join(tmp_modules, 'OpenMPI', '2.1.2-GCC-6.4.0-2.28')
         ompi_mod_txt = read_file(openmpi_module)
@@ -3481,11 +3476,7 @@ class ToolchainTest(EnhancedTestCase):
         write_file(tc_ec, tc_ec_txt)
         self.eb_main([tc_ec], raise_error=True, do_build=True)
 
-        topdir = os.path.dirname(os.path.abspath(__file__))
-        toy_ec = os.path.join(topdir, 'easyconfigs', 'test_ecs', 't', 'toy', 'toy-0.0.eb')
-        toy_ec_txt = read_file(toy_ec)
-
-        test_ec_txt = re.sub('toolchain.*', "toolchain = {'name': 'GCC', 'version': 'external'}", toy_ec_txt)
+        test_ec_txt = re.sub('toolchain.*', "toolchain = {'name': 'GCC', 'version': 'external'}", TOY_EC_TXT)
 
         test_ec = os.path.join(self.test_prefix, 'test.eb')
         write_file(test_ec, test_ec_txt)
