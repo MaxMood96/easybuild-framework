@@ -92,7 +92,7 @@ from easybuild.tools.config import build_option, build_path, get_failed_install_
 from easybuild.tools.config import get_failed_install_logs_path, get_log_filename, get_repository, get_repositorypath
 from easybuild.tools.config import install_path, log_path, package_path, source_paths, source_paths_data
 from easybuild.tools.config import DATA, SOFTWARE
-from easybuild.tools.environment import restore_env, sanitize_env
+from easybuild.tools.environment import copy_current_env, restore_env, sanitize_env
 from easybuild.tools.filetools import CHECKSUM_TYPE_SHA256
 from easybuild.tools.filetools import adjust_permissions, apply_patch, back_up_file, change_dir, check_lock, clean_dir
 from easybuild.tools.filetools import compute_checksum, convert_name, copy_dir, copy_file, create_lock
@@ -2163,6 +2163,22 @@ class EasyBlock:
 
         exts_cnt = len(self.ext_instances)
 
+        # determine build environment, and cache it
+        if self.dry_run:
+            self.dry_run_msg("defining build environment based on toolchain (options) and dependencies...")
+        else:
+            with self.fake_module_environment(with_build_deps=True):
+                self.log.debug("List of loaded modules: %s", self.modules_tool.list())
+                # don't reload modules for toolchain, there is no need
+                # since they will be loaded already by the fake module
+                self.toolchain.prepare(onlymod=self.cfg['onlytcmod'], deps=self.cfg.dependencies(),
+                                       silent=True, loadmod=False,
+                                       rpath_filter_dirs=self.rpath_filter_dirs,
+                                       rpath_include_dirs=self.rpath_include_dirs,
+                                       rpath_wrappers_dir=self.rpath_wrappers_dir)
+
+                build_env = copy_current_env()
+
         for idx, ext in enumerate(self.ext_instances):
             self.log.info("Starting extension %s", ext.name)
 
@@ -2183,33 +2199,25 @@ class EasyBlock:
                 msg = "\n* installing extension %s %s using '%s' easyblock\n" % tup
                 self.dry_run_msg(msg)
 
-            if self.dry_run:
-                self.dry_run_msg("defining build environment based on toolchain (options) and dependencies...")
-
             # actual installation of the extension
-            if install and not self.dry_run:
-                with self.fake_module_environment(with_build_deps=True):
-                    self.log.debug("List of loaded modules: %s", self.modules_tool.list())
-                    # don't reload modules for toolchain, there is no need
-                    # since they will be loaded already by the fake module
-                    ext.toolchain.prepare(onlymod=self.cfg['onlytcmod'], deps=self.cfg.dependencies(),
-                                          silent=True, loadmod=False,
-                                          rpath_filter_dirs=self.rpath_filter_dirs,
-                                          rpath_include_dirs=self.rpath_include_dirs,
-                                          rpath_wrappers_dir=self.rpath_wrappers_dir)
-                    try:
-                        ext.install_extension_substep("pre_install_extension")
-                        with self.module_generator.start_module_creation():
-                            txt = ext.install_extension_substep("install_extension")
-                        if txt:
-                            self.module_extra_extensions += txt
-                        ext.install_extension_substep("post_install_extension")
-                    finally:
-                        ext_duration = datetime.now() - start_time
-                        if ext_duration.total_seconds() >= 1:
-                            print_msg("\t... (took %s)", time2str(ext_duration), log=self.log, silent=self.silent)
-                        elif self.logdebug or build_option('trace'):
-                            print_msg("\t... (took < 1 sec)", log=self.log, silent=self.silent)
+            elif install:
+
+                # restore build environment for this extension
+                restore_env(build_env, log_changes=False)
+
+                try:
+                    ext.install_extension_substep("pre_install_extension")
+                    with self.module_generator.start_module_creation():
+                        txt = ext.install_extension_substep("install_extension")
+                    if txt:
+                        self.module_extra_extensions += txt
+                    ext.install_extension_substep("post_install_extension")
+                finally:
+                    ext_duration = datetime.now() - start_time
+                    if ext_duration.total_seconds() >= 1:
+                        print_msg("\t... (took %s)", time2str(ext_duration), log=self.log, silent=self.silent)
+                    elif self.logdebug or build_option('trace'):
+                        print_msg("\t... (took < 1 sec)", log=self.log, silent=self.silent)
 
             self.update_exts_progress_bar(progress_info, progress_size=1)
 

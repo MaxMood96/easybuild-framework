@@ -76,6 +76,13 @@ def get_changes():
     return _changes
 
 
+def copy_current_env():
+    """
+    Copy current environment, and return it.
+    """
+    return copy.deepcopy(os.environ)
+
+
 def setvar(key, value, verbose=True, log_changes=True):
     """
     put key in the environment with value
