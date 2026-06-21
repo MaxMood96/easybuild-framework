@@ -3649,7 +3649,6 @@ class ToyBuildTest(EnhancedTestCase):
             echo toy
             in module-write hook hook for {mod_name}
             installing of extension bar is done!
-            in module-write hook hook for {mod_name}
             pre_run_shell_cmd_hook triggered for ' gcc toy.c -o toy '
             ' gcc toy.c -o toy  && copy_toy_file toy copy_of_toy' command failed (exit code 127), but I fixed it!
             installing of extension toy is done!
