@@ -570,7 +570,7 @@ class Toolchain:
         # current $MODULEPATH without loading the prior dependencies in a module hierarchy
         # (e.g. OpenMPI module may only be available after loading GCC module);
         # when actually loading the modules for the dependencies, the *short* module name is used,
-        # see _load_dependencies_modules()
+        # see _load_modules_toolchain_and_deps()
         dep_mod_names = [dep['full_mod_name'] for dep in dependencies]
 
         # check whether modules exist
@@ -743,22 +743,128 @@ class Toolchain:
             for name, version in zip(names, versions):
                 self._simulated_load_dependency_module(name, version, metadata, verbose=True)
 
+    def _load_modules_toolchain_and_deps(self, silent=False):
+        """
+        Load modules for toolchain + dependencies, and handle special cases like external modules.
+
+        :param silent: boolean indicating whether or not to stay silent
+        """
+        system_toolchain = self.is_system_toolchain()
+        if system_toolchain:
+            self.log.info("Loading dependencies using system toolchain...")
+        else:
+            self.log.debug("Loading toolchain module and dependencies...")
+
+        tc_mod = None if system_toolchain else self.det_short_module_name()
+        dep_mods = [dep['short_mod_name'] for dep in self.dependencies]
+
+        if self.dry_run:
+            if not system_toolchain:
+                dry_run_msg("Loading toolchain module...\n", silent=silent)
+
+                # load toolchain module, or simulate load of toolchain components if it is not available
+                if self.modules_tool.exist([tc_mod], skip_avail=True)[0]:
+                    self.modules_tool.load([tc_mod])
+                    dry_run_msg(f"module load {tc_mod}", silent=silent)
+                else:
+                    # first simulate loads for toolchain dependencies, if required information is available
+                    for tc_dep in self.tcdeps:
+                        mod_name = tcdep['short_mod_name']
+                        dry_run_msg(f"module load {mod_name} [SIMULATED]", silent=silent)
+                        # 'use '$EBROOTNAME' as value for dep install prefix (looks nice in dry run output)
+                        deproot = '$' + get_software_root_env_var_name(tc_dep['name'])
+                        self._simulated_load_dependency_module(tc_dep['name'], tc_dep['version'], {'prefix': deproot})
+
+                    dry_run_msg("module load %s [SIMULATED]" % tc_mod, silent=silent)
+                    # use name of $EBROOT* env var as value for $EBROOT* env var (results in sensible dry run output)
+                    tcroot = '$' + get_software_root_env_var_name(self.name)
+                    self._simulated_load_dependency_module(self.name, self.version, {'prefix': tcroot})
+
+            dry_run_msg("\nLoading modules for dependencies...\n", silent=silent)
+
+            mods_exist = self.modules_tool.exist(dep_mods)
+
+            # load available modules for dependencies, simulate load for others
+            mods_to_load = []
+            for dep, dep_mod_exists in zip(self.dependencies, mods_exist):
+                mod_name = dep['short_mod_name']
+                if dep_mod_exists:
+                    mods_to_load.append(mod_name)
+                    dry_run_msg(f"module load {mod_name}", silent=silent)
+                else:
+                    dry_run_msg("module load {mod_name} [SIMULATED]", silent=silent)
+                    # 'use '$EBROOTNAME' as value for dep install prefix (looks nice in dry run output)
+                    if not dep['external_module']:
+                        deproot = '$' + get_software_root_env_var_name(dep['name'])
+                        self._simulated_load_dependency_module(dep['name'], dep['version'], {'prefix': deproot})
+
+            self.modules_tool.load(mods_to_load)
+
+        else:
+            mods_to_load = []
+            if not system_toolchain:
+                # make sure toolchain is available using short module name by running 'module use' on module path subdir
+                if self.init_modpaths:
+                    mod_path_suffix = build_option('suffix_modules_path')
+                    for modpath in self.init_modpaths:
+                        modpath = os.path.join(install_path('mod'), mod_path_suffix, modpath)
+                        if os.path.exists(modpath):
+                            # FIXME
+                            self.modules_tool.prepend_module_path(modpath)
+
+                self.log.debug(f"Loading module for toolchain: {tc_mod}")
+                trace_msg(f"loading toolchain module: {tc_mod}")
+                mods_to_load.append(tc_mod)
+
+            self.log.debug(f"Loading modules for dependencies: {' '.join(dep_mods)}")
+            mods_to_load.extend(dep_mods)
+            if dep_mods:
+                build_dep_mods = [dep['short_mod_name'] for dep in self.dependencies if dep['build_only']]
+                if build_dep_mods:
+                    trace_msg("loading modules for build dependencies:")
+                    for dep_mod in build_dep_mods:
+                        trace_msg(' * ' + dep_mod)
+                else:
+                    trace_msg("(no build dependencies specified)")
+
+                run_dep_mods = [dep['short_mod_name'] for dep in self.dependencies if not dep['build_only']]
+                if run_dep_mods:
+                    trace_msg("loading modules for (runtime) dependencies:")
+                    for dep_mod in run_dep_mods:
+                        trace_msg(' * ' + dep_mod)
+                else:
+                    trace_msg("(no (runtime) dependencies specified)")
+
+            # actually load modules, all in one go
+            self.modules_tool.load(mods_to_load)
+
+        # append toolchain + dependency modules to list of modules
+        self.modules.extend([tc_mod] + dep_mods)
+
+        # define $EBROOT* and $EBVERSION* for external modules, if metadata is available
+        for dep in [d for d in self.dependencies if d['external_module']]:
+            mod_name = dep['full_mod_name']
+            metadata = dep['external_module_metadata']
+            self.log.debug("Metadata for external module %s: %s", mod_name, metadata)
+
+            names = metadata.get('name', [])
+            versions = metadata.get('version', [None] * len(names))
+            self.log.debug("Defining $EB* environment variables for external module %s using names %s, versions %s",
+                           mod_name, names, versions)
+
+            for name, version in zip(names, versions):
+                self._simulated_load_dependency_module(name, version, metadata, verbose=True)
+
     def _load_modules(self, silent=False):
         """Load modules for toolchain and dependencies."""
         if self.modules_tool is None:
             raise EasyBuildError("No modules tool defined in Toolchain instance.")
 
         if not self._toolchain_exists() and not self.dry_run:
-            raise EasyBuildError("No module found for toolchain: %s", self.mod_short_name)
+            raise EasyBuildError(f"No module found for toolchain: {self.mod_short_name}")
 
-        if self.is_system_toolchain():
-            self.log.info("Loading dependencies using system toolchain...")
-            self._load_dependencies_modules(silent=silent)
-        else:
-            # load the toolchain and dependencies modules
-            self.log.debug("Loading toolchain module and dependencies...")
-            self._load_toolchain_module(silent=silent)
-            self._load_dependencies_modules(silent=silent)
+        # load modules for toolchain + specified (build) dependencies
+        self._load_modules_toolchain_and_deps(silent=silent)
 
         # include list of loaded modules in dry run output
         if self.dry_run:
@@ -766,7 +872,7 @@ class Toolchain:
             dry_run_msg("\nFull list of loaded modules:", silent=silent)
             if loaded_mods:
                 for i, mod_name in enumerate([m['mod_name'] for m in loaded_mods]):
-                    dry_run_msg("  %d) %s" % (i + 1, mod_name), silent=silent)
+                    dry_run_msg(f"  {i + 1}) {mod_name}", silent=silent)
             else:
                 dry_run_msg("  (none)", silent=silent)
             dry_run_msg('', silent=silent)
