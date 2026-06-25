@@ -1995,6 +1995,9 @@ class EasyBlock:
 
         Each entry should be a (name, version) tuple or just (name, ) if no version exists.
         Custom EasyBlocks may override this to add extensions that cannot be found automatically.
+
+        :param formatted: boolean indicating whether to format the extension name. If True, format using
+                          the function defined by the exts_formatter parameter.
         """
         # Each extension in exts_list is either a string or a list/tuple with name, version as first entries
         # As name can be a templated value we must resolve templates
