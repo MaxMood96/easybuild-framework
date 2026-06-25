@@ -145,6 +145,7 @@ ETC_OS_RELEASE = '/etc/os-release'
 MAX_FREQ_FP = '/sys/devices/system/cpu/cpu0/cpufreq/scaling_max_freq'
 PROC_CPUINFO_FP = '/proc/cpuinfo'
 PROC_MEMINFO_FP = '/proc/meminfo'
+PTRACE_SCOPE_FP = '/proc/sys/kernel/yama/ptrace_scope'
 
 CPU_ARCHITECTURES = [AARCH32, AARCH64, POWER, RISCV32, RISCV64, X86_64]
 CPU_FAMILIES = [AMD, ARM, INTEL, POWER, POWER_LE, RISCV]
@@ -465,7 +466,7 @@ def get_cpu_family():
     return family
 
 
-def get_cpu_arch_name():
+def get_cpu_arch_name(show_warning=True):
     """
     Determine CPU architecture name via archspec (if available).
     """
@@ -476,6 +477,10 @@ def get_cpu_arch_name():
             cpu_arch_name = str(res.name)
 
     if cpu_arch_name is None:
+        if show_warning and not HAVE_ARCHSPEC:
+            print_warning("Could not detect CPU architecture name which may affect functionality. "
+                          "Please install the 'archspec' Python package into the same Python environment as EasyBuild.",
+                          log=_log)
         cpu_arch_name = UNKNOWN
 
     return cpu_arch_name
@@ -1345,7 +1350,7 @@ def get_system_info():
         'core_count': get_avail_core_count(),
         'total_memory': get_total_memory(),
         'cpu_arch': get_cpu_architecture(),
-        'cpu_arch_name': get_cpu_arch_name(),
+        'cpu_arch_name': get_cpu_arch_name(show_warning=False),
         'cpu_model': get_cpu_model(),
         'cpu_speed': get_cpu_speed(),
         'cpu_vendor': get_cpu_vendor(),
@@ -1360,6 +1365,40 @@ def get_system_info():
         'system_python_path': which('python'),
         'system_gcc_path': which('gcc'),
     }
+
+
+def get_ptrace_scope():
+    """
+    Returns the ptrace_scope value set by the currently running operating system session.
+    Depending on the OS, this can either be read through a file, or has to be obtained
+    via sysctl.
+    If no ptrace_scope value can be determined, return 0 and warn about the failed
+    detection.
+
+    This can e.g., be used by debugger EasyBlocks to determine functionality of attaching
+    to a process before running tests, which will fail for ptrace_scope > 1.
+    """
+    try:
+        ptrace_scope_file = read_file(PTRACE_SCOPE_FP)
+        return int(ptrace_scope_file)
+    except EasyBuildError:
+        # File might not exist, hence skip a potential error
+        _log.warning(f"Could not find or open {PTRACE_SCOPE_FP}")
+    except ValueError:
+        _log.warning(f"Could not parse value of ptrace_scope file in {PTRACE_SCOPE_FP}")
+
+    result = run_shell_cmd("sysctl kernel.yama.ptrace_scope", fail_on_error=False, split_stderr=True)
+    if result:
+        try:
+            # Expected output: kernel.yama.ptrace_scope = 3
+            return int(result.output.split("=")[-1])
+        except ValueError:
+            _log.warning("Could not determine ptrace_scope value from sysctl output. Output was %s", result.output)
+    else:
+        _log.warning("Running sysctl kernel.yama.ptrace_scope failed: %s", result.stderr)
+
+    _log.warning("Could not determine ptrace_scope. Assuming 0.")
+    return 0
 
 
 def use_group(group_name):
