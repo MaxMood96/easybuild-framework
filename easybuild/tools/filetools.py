@@ -175,12 +175,17 @@ EXTRACT_CMDS = {
     # zip file
     '.zip': "unzip -qq %(filepath)s",
     # iso file
-    '.iso': "7z x %(filepath)s",
+    '.iso': "bsdtar xf %(filepath)s",
     # tar.Z: using compress (LZW), but can be handled with gzip so use 'z'
     '.tar.z': "tar xzf %(filepath)s",
     # shell scripts don't need to be unpacked, just copy there
     '.sh': "cp -dR %(filepath)s .",
 }
+
+# 7z can also extract iso files, use it as a fallback
+if not shutil.which('bsdtar') and shutil.which('7z'):
+    _log.info("Did not find bsdtar, switching to 7z for iso files")
+    EXTRACT_CMDS['.iso'] = "7z x %(filepath)s"
 
 ZIPPED_PATCH_EXTS = ('.bz2', '.gz', '.xz')
 
