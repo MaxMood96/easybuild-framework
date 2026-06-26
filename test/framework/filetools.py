@@ -107,7 +107,7 @@ class FileToolsTest(EnhancedTestCase):
             ('test.xz', "unxz test.xz"),
             ('test.tar.xz', "unset TAPE; unxz test.tar.xz --stdout | tar x"),
             ('test.txz', "unset TAPE; unxz test.txz --stdout | tar x"),
-            ('test.iso', "7z x test.iso"),
+            ('test.iso', "bsdtar xf test.iso"),
             ('test.tar.Z', "tar xzf test.tar.Z"),
             ('test.foo.bar.sh', "cp -dR test.foo.bar.sh ."),
             # check whether extension is stripped correct to determine name of target file
