@@ -69,7 +69,7 @@ jobs:
         # for modules tool
         APT_PKGS="lua5.3 liblua5.3-dev lua-filesystem lua-posix tcl tcl-dev"
         # for GitPython, python-hglib
-        APT_PKGS+=" git mercurial bsdtar"
+        APT_PKGS+=" git mercurial"
         # dep for GC3Pie
         APT_PKGS+=" time"
 
