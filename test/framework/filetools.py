@@ -107,7 +107,7 @@ class FileToolsTest(EnhancedTestCase):
             ('test.xz', "unxz test.xz"),
             ('test.tar.xz', "unset TAPE; unxz test.tar.xz --stdout | tar x"),
             ('test.txz', "unset TAPE; unxz test.txz --stdout | tar x"),
-            ('test.iso', "7z x test.iso"),
+            ('test.iso', "bsdtar xf test.iso"),
             ('test.tar.Z', "tar xzf test.tar.Z"),
             ('test.foo.bar.sh', "cp -dR test.foo.bar.sh ."),
             # check whether extension is stripped correct to determine name of target file
@@ -118,6 +118,10 @@ class FileToolsTest(EnhancedTestCase):
         for (fn, expected_cmd) in tests:
             cmd = ft.extract_cmd(fn)
             self.assertEqual(expected_cmd, cmd)
+
+        # Fake 7z command to test fallback
+        # Help me boegel, you're my only hope
+        self.assertEqual("7z x test.iso", ft.extract_cmd('test.iso'))
 
         self.assertEqual("unzip -qq -o test.zip", ft.extract_cmd('test.zip', True))
 

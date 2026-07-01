@@ -183,7 +183,7 @@ EXTRACT_CMDS = {
 }
 
 # 7z can also extract iso files, use it as a fallback
-if not shutil.which('bsdtar') and shutil.which('7z'):
+if not shutil.which('bsdtar'):
     _log.info("Did not find bsdtar, switching to 7z for iso files")
     EXTRACT_CMDS['.iso'] = "7z x %(filepath)s"
 
