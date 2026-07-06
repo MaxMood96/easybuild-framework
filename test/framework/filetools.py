@@ -121,7 +121,7 @@ class FileToolsTest(EnhancedTestCase):
 
         # Fake 7z command to test fallback
         fake_7z = os.path.join(self.test_prefix, 'bin', '7z')
-        ft.write_file(fake_eb, '#!/bin/bash\necho "fake 7z"')
+        ft.write_file(fake_7z, '#!/bin/bash\necho "fake 7z"')
         ft.adjust_permissions(fake_7z, stat.S_IXUSR)
         os.environ['PATH'] = '%s:%s' % (os.path.dirname(fake_7z), os.getenv('PATH', ''))
         self.assertEqual("7z x test.iso", ft.extract_cmd('test.iso'))
