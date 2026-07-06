@@ -120,7 +120,10 @@ class FileToolsTest(EnhancedTestCase):
             self.assertEqual(expected_cmd, cmd)
 
         # Fake 7z command to test fallback
-        # Help me boegel, you're my only hope
+        fake_7z = os.path.join(self.test_prefix, 'bin', '7z')
+        ft.write_file(fake_eb, '#!/bin/bash\necho "fake 7z"')
+        ft.adjust_permissions(fake_7z, stat.S_IXUSR)
+        os.environ['PATH'] = '%s:%s' % (os.path.dirname(fake_7z), os.getenv('PATH', ''))
         self.assertEqual("7z x test.iso", ft.extract_cmd('test.iso'))
 
         self.assertEqual("unzip -qq -o test.zip", ft.extract_cmd('test.zip', True))
