@@ -34,6 +34,7 @@ Unit tests for filetools.py
 import datetime
 import filecmp
 import glob
+import importlib
 import logging
 import os
 import re
@@ -107,7 +108,7 @@ class FileToolsTest(EnhancedTestCase):
             ('test.xz', "unxz test.xz"),
             ('test.tar.xz', "unset TAPE; unxz test.tar.xz --stdout | tar x"),
             ('test.txz', "unset TAPE; unxz test.txz --stdout | tar x"),
-            ('test.iso', "bsdtar xf test.iso"),
+            ('test.iso', "7z x test.iso"),
             ('test.tar.Z', "tar xzf test.tar.Z"),
             ('test.foo.bar.sh', "cp -dR test.foo.bar.sh ."),
             # check whether extension is stripped correct to determine name of target file
@@ -119,12 +120,13 @@ class FileToolsTest(EnhancedTestCase):
             cmd = ft.extract_cmd(fn)
             self.assertEqual(expected_cmd, cmd)
 
-        # Fake 7z command to test fallback
-        fake_7z = os.path.join(self.test_prefix, 'bin', '7z')
-        ft.write_file(fake_7z, '#!/bin/bash\necho "fake 7z"')
-        ft.adjust_permissions(fake_7z, stat.S_IXUSR)
-        os.environ['PATH'] = '%s:%s' % (os.path.dirname(fake_7z), os.getenv('PATH', ''))
-        self.assertEqual("7z x test.iso", ft.extract_cmd('test.iso'))
+        # Fake bsdtar command, if exists, is preferred
+        fake_bsdtar = os.path.join(self.test_prefix, 'bin', 'bsdtar')
+        ft.write_file(fake_bsdtar, '#!/bin/bash\necho "fake bsdtar"')
+        ft.adjust_permissions(fake_bsdtar, stat.S_IXUSR)
+        os.environ['PATH'] = '%s:%s' % (os.path.dirname(fake_bsdtar), os.getenv('PATH', ''))
+        ft = importlib.reload(ft)  # Force reload to get new EXTRACT_CMDS
+        self.assertEqual("bsdtar xf test.iso", ft.extract_cmd('test.iso'))
 
         self.assertEqual("unzip -qq -o test.zip", ft.extract_cmd('test.zip', True))
 
