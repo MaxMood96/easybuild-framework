@@ -38,7 +38,7 @@ from easybuild.toolchains.linalg.flexiblas import FlexiBLAS
 
 
 class Lfbf(LLVMCompilersToolchain, FlexiBLAS, Fftw):
-    """Compiler toolchain with GCC, FlexiBLAS and FFTW."""
+    """Compiler toolchain with LLVM, FlexiBLAS and FFTW."""
     NAME = 'lfbf'
     SUBTOOLCHAIN = LLVMCompilersToolchain.NAME
     OPTIONAL = True
