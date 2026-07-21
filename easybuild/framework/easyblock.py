@@ -4322,25 +4322,35 @@ class EasyBlock:
             self.sanity_check_fail_msgs.append(overall_fail_msg + ', '.join(x[0] for x in failed_exts))
             self.sanity_check_fail_msgs.extend(x[1] for x in failed_exts)
 
-    def sanity_check_load_module(self, extension=False, extra_modules=None):
+    def sanity_check_load_module(self, extension=None, extra_modules=None):
         """
         Load module to prepare environment for sanity check
+        extension - DEPRECATED
         """
-        if extension != self.is_extension:
-            raise RuntimeError(f"{self} {self.name} {extension}!={self.is_extension}")
+        if extension is not None:
+            if extra_modules is None and isinstance(extension, list):
+                # 2-parameter form intended as-if `extension` was already removed
+                extra_modules = extension
+            else:
+                self.log.deprecated(
+                    "Passing `extension` to `sanity_check_load_module` is no longer necessary "
+                    f"(Easyblock: {self.__class__.__name__}).",
+                    '6.0',
+                )
+                if extension != self.is_extension:
+                    raise EasyBuildError('Unexpected value for `extension` argument. '
+                                         f'Should be: {self.is_extension}, got:  {extension}')
+        del extension  # Avoid accidental use
 
         # skip loading of fake module when using --sanity-check-only, load real module instead
-        if build_option('sanity_check_only') and not extension:
+        if build_option('sanity_check_only') and not self.is_extension:
             self.log.info("Loading real module for %s %s: %s", self.name, self.version, self.short_mod_name)
             self.load_module(extra_modules=extra_modules)
             self.sanity_check_module_loaded = True
-
         # only load fake module for non-extensions, and not during dry run
-        elif not (extension or self.dry_run):
-
+        elif not (self.is_extension or self.dry_run):
             if extra_modules:
                 self.log.info("Loading extra modules for sanity check: %s", ', '.join(extra_modules))
-
             try:
                 # unload all loaded modules before loading fake module
                 # this ensures that loading of dependencies is tested, and avoids conflicts with build dependencies
@@ -4433,7 +4443,7 @@ class EasyBlock:
                 trace_msg("%s %s found: %s" % (typ, xs2str(xs), ('FAILED', 'OK')[found]))
 
         if not self.sanity_check_module_loaded:
-            self.sanity_check_load_module(extension=self.is_extension, extra_modules=extra_modules)
+            self.sanity_check_load_module(extra_modules=extra_modules)
 
         # allow oversubscription of P processes on C cores (P>C) for software installed on top of Open MPI;
         # this is useful to avoid failing of sanity check commands that involve MPI
