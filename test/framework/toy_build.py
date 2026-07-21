@@ -2710,12 +2710,11 @@ class ToyBuildTest(EnhancedTestCase):
         stdout = self.get_stdout()
         self.mock_stdout(False)
 
-        pattern_lines = [
-            r"^== sanity checking\.\.\.",
-            r"  >> file 'bin/toy' found: OK",
-        ]
-        regex = re.compile(r'\n'.join(pattern_lines), re.M)
-        self.assertTrue(regex.search(stdout), "Pattern '%s' should be found in: %s" % (regex.pattern, stdout))
+        expected_out = textwrap.dedent("""
+            == sanity checking...
+              >> file 'bin/toy' found: OK
+        """)
+        self.assertIn(expected_out, stdout)
 
         # no directories are checked in sanity check now, only files (since dirs is an empty list)
         regex = re.compile(r"directory .* found:", re.M)
@@ -3497,19 +3496,18 @@ class ToyBuildTest(EnhancedTestCase):
                 r'',
             ]),
             r"  >> command completed: exit 0, ran in .*",
-            r'^' + r'\n'.join([
-                r"== sanity checking\.\.\.",
-                r"  >> file 'bin/yot' or 'bin/toy' found: OK",
-                r"  >> \(non-empty\) directory 'bin' found: OK",
-                r"  >> loading modules: toy/0.0\.\.\.",
-                r"  >> running command 'toy' \.\.\.",
-                r"  >> result for command 'toy': OK",
-            ]) + r'$',
             r"^== creating module\.\.\.\n  >> generating module file @ .*/modules/all/toy/0\.0(?:\.lua)?$",
         ]
-        for pattern in patterns:
-            regex = re.compile(pattern, re.M)
-            self.assertTrue(regex.search(stdout), "Pattern '%s' found in: %s" % (regex.pattern, stdout))
+        self.assert_multi_regex(patterns, stdout)
+        expected_stdout = textwrap.dedent("""
+            == sanity checking...
+              >> file 'bin/yot' or 'bin/toy' found: OK
+              >> (non-empty) directory 'bin' found: OK
+              >> loading modules: toy/0.0...
+              >> running command 'toy' ...
+              >> result for command 'toy': OK
+        """)
+        self.assertIn(expected_stdout, stdout)
 
     def test_toy_build_hooks(self):
         """Test use of --hooks."""
