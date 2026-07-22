@@ -266,20 +266,23 @@ class RunTest(EnhancedTestCase):
         cmd_script = os.path.join(cmd_tmpdir, 'cmd.sh')
         self.assertExists(cmd_script)
 
-        cmd = f"{cmd_script} -c 'echo pwd: $PWD; echo $FOOBAR; echo $EB_CMD_OUT_FILE; cat $EB_CMD_OUT_FILE'"
+        cmd = f"{cmd_script} -c '"
+        cmd += 'echo pwd: $PWD; echo "bash_env: $BASH_ENV"; echo $FOOBAR; echo $EB_CMD_OUT_FILE; cat $EB_CMD_OUT_FILE'
+        cmd += "'"
         with self.mocked_stdout_stderr():
             res = run_shell_cmd(cmd, fail_on_error=False)
         self.assertEqual(res.exit_code, 0)
-        regex = re.compile("pwd: .*\nfoobar\n.*/echo-.*/out.txt\nhello$")
+        regex = re.compile("pwd: .*\nbash_env: .*\nfoobar\n.*/echo-.*/out.txt\nhello$")
         self.assertTrue(regex.search(res.output), f"Pattern '{regex.pattern}' should be found in {res.output}")
 
         # check whether working directory is what's expected
-        regex = re.compile('^pwd: .*', re.M)
-        res = regex.findall(res.output)
-        self.assertEqual(len(res), 1)
-        pwd = res[0].strip()[5:]
+        matches = re.findall('^pwd: (.*)', res.output, re.M)
+        self.assertEqual(len(matches), 1)
+        pwd = matches[0]
         self.assertTrue(os.path.samefile(pwd, self.test_prefix))
 
+        # BASH_ENV is that of the current shell, not the one set in the cmd.sh
+        self.assertEqual(re.search('^bash_env: (.*)', res.output, re.M)[1], os.environ.get('BASH_ENV', ''))
         cmd = f"{cmd_script} -c 'module --version'"
         with self.mocked_stdout_stderr():
             res = run_shell_cmd(cmd, fail_on_error=False)
@@ -493,9 +496,9 @@ class RunTest(EnhancedTestCase):
         fd, logfile = tempfile.mkstemp(suffix='.log', prefix='eb-test-')
         os.close(fd)
 
-        regex_start_cmd = re.compile(r"Running 'echo ...' shell command in .*:\n\techo hello", re.M)
-        regex_cmd_exit = re.compile(r"'echo ...' shell command completed successfully")
-        regex_cmd_output = re.compile(r"Output of 'echo \.\.\.' shell command \(stdout \+ stderr\):\nhello", re.M)
+        regex_start_cmd = re.compile(r"Running shell command in .*:\n\techo hello", re.M)
+        regex_cmd_exit = re.compile(r"Shell command completed successfully")
+        regex_cmd_output = re.compile(r"Output \(stdout \+ stderr\):\nhello", re.M)
 
         # command output is logged
         init_logging(logfile, silent=True)
@@ -2297,7 +2300,7 @@ class RunTest(EnhancedTestCase):
         )
 
         error_pattern = rf"Failed to return to .*/{os.path.basename(self.test_prefix)}/workdir "
-        error_pattern += r"after executing 'echo ...' shell command"
+        error_pattern += r"after executing shell command"
 
         mkdir(workdir, parents=True)
         with self.mocked_stdout_stderr():
