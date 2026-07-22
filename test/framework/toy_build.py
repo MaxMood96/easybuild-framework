@@ -2502,19 +2502,19 @@ class ToyBuildTest(EnhancedTestCase):
             exts_list = [
                 ('barbar', '0.0', {
                     'exts_filter': ('ls -l lib/lib%(ext_name)s.a', ''),
-                    'toy_custom_sanity_check_cmds': ['echo "Run-Custom-Cmd for %(name)s" && {}'],
+                    'toy_custom_sanity_check_cmds': ['echo "Run-Custom-Cmd for %(name)s" && PLACEHOLDER'],
                     'sanity_check_paths': {'dirs': [], 'files': ['lib/libbarbar.a']},
                 })
             ]
         """)
         test_ec = os.path.join(self.test_prefix, 'test.eb')
-        write_file(test_ec, test_ec_txt.format("false"))
+        write_file(test_ec, test_ec_txt.replace('PLACEHOLDER', 'false'))
         error_pattern = 'sanity check command echo "Run-Custom-Cmd for barbar" && false failed with exit code 1'
         with self.mocked_stdout_stderr():
             self.assertErrorRegex(EasyBuildError, error_pattern, self._test_toy_build, ec_file=test_ec,
                                   raise_error=True, verbose=False)
 
-        write_file(test_ec, test_ec_txt.format("true"))
+        write_file(test_ec, test_ec_txt.replace('PLACEHOLDER', 'true'))
         with self.mocked_stdout_stderr(), self.log_to_testlogfile() as logfile:
             self._test_toy_build(ec_file=test_ec, raise_error=True)
             logtxt = read_file(logfile)
