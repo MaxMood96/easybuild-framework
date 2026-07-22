@@ -4326,18 +4326,14 @@ class EasyBlock:
         extension - DEPRECATED
         """
         if extension is not None:
-            if extra_modules is None and isinstance(extension, list):
-                # 2-parameter form intended as-if `extension` was already removed
-                extra_modules = extension
-            else:
-                self.log.deprecated(
-                    "Passing `extension` to `sanity_check_load_module` is no longer necessary "
-                    f"(Easyblock: {self.__class__.__name__}).",
-                    '6.0',
-                )
-                if extension != self.is_extension:
-                    raise EasyBuildError('Unexpected value for `extension` argument. '
-                                         f'Should be: {self.is_extension}, got:  {extension}')
+            self.log.deprecated(
+                "Passing `extension` to `sanity_check_load_module` is no longer necessary "
+                f"(Easyblock: {self.__class__.__name__}).",
+                '6.0',
+            )
+            if extension != self.is_extension:
+                raise EasyBuildError('Unexpected value for `extension` argument. '
+                                     f'Should be: {self.is_extension}, got:  {extension}')
         del extension  # Avoid accidental use
 
         if self.is_extension:
@@ -4373,18 +4369,14 @@ class EasyBlock:
         :param extra_modules: extra modules to load before running sanity check commands
         """
         if extension is not None:
-            if extra_modules is None and isinstance(extension, list):
-                # 3-parameter form intended as-if `extension` was already removed
-                extra_modules = extension
-            else:
-                self.log.deprecated(
-                    "Passing `extension` to `sanity_check_step` is no longer necessary "
-                    f"(Easyblock: {self.__class__.__name__}).",
-                    '6.0',
-                )
-                if extension != self.is_extension:
-                    raise EasyBuildError('Unexpected value for `extension` argument. '
-                                         f'Should be: {self.is_extension}, got:  {extension}')
+            self.log.deprecated(
+                "Passing `extension` to `sanity_check_step` is no longer necessary "
+                f"(Easyblock: {self.__class__.__name__}).",
+                '6.0',
+            )
+            if extension != self.is_extension:
+                raise EasyBuildError('Unexpected value for `extension` argument. '
+                                     f'Should be: {self.is_extension}, got:  {extension}')
         del extension  # Avoid accidental use
 
         paths, path_keys_and_check, commands = self._sanity_check_step_common(custom_paths, custom_commands)
