@@ -2411,7 +2411,7 @@ class EasyBlock:
                 self.clean_up_fake_module(fake_mod_data)
 
     @contextmanager
-    def sanity_check_module_environment(self, extra_modules=None, with_build_deps=False, check_loaded=True):
+    def sanity_check_module_environment(self, extra_modules=None, check_loaded=True):
         """Load/Unload module for performing sanity checks"""
         if self.sanity_check_module_loaded and check_loaded:
             raise EasyBuildError("Sanity check module is already loaded and must not be loaded again")
@@ -2419,9 +2419,6 @@ class EasyBlock:
         if self.sanity_check_module_loaded:
             unload_module = False
         else:
-            if with_build_deps:
-                # load modules for build dependencies as extra modules
-                extra_modules = [dep['short_mod_name'] for dep in self.cfg.dependencies(build_only=True)]
             self.sanity_check_load_module(extra_modules=extra_modules)
             unload_module = True
 
