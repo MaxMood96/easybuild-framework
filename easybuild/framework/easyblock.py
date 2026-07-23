@@ -2394,6 +2394,10 @@ class EasyBlock:
         fake_mod_data = None
 
         if with_build_deps:
+            if extra_modules:
+                print_warning("`with_build_deps` overwrites `extra_modules` in fake_module_environment",
+                              "Until EasyBuild 6 add the build dependencies to `extra_modules` instead",
+                              log=self.log)
             # load modules for build dependencies as extra modules
             extra_modules = [dep['short_mod_name'] for dep in self.cfg.dependencies(build_only=True)]
 
