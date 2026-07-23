@@ -218,7 +218,7 @@ class EasyBlock:
         self.skip = None
         self.module_extra_extensions = ''  # extra stuff for module file required by extensions
 
-        # indicates whether or not this instance represents an extension or not;
+        # indicates whether or not this instance represents an extension
         # may be set to True by ExtensionEasyBlock
         self.is_extension = False
 
@@ -684,11 +684,10 @@ class EasyBlock:
                         'version': ext_version,
                         'options': ext_options,
                         'github_account': ext_options.get('github_account', orig_github_account),
+                        # if a particular easyblock is specified, make sure it's used
+                        # (this is picked up by init_ext_instances)
+                        'easyblock': ext_options.get('easyblock', None),
                     }
-
-                    # if a particular easyblock is specified, make sure it's used
-                    # (this is picked up by init_ext_instances)
-                    ext_src['easyblock'] = ext_options.get('easyblock', None)
 
                     # construct dictionary with template values;
                     # inherited from parent, except for name/version templates which are specific to this extension
@@ -1142,14 +1141,14 @@ class EasyBlock:
     @property
     def name(self):
         """
-        Shortcut the get the module name.
+        Shortcut to get the module name.
         """
         return self.cfg['name']
 
     @property
     def version(self):
         """
-        Shortcut the get the module version.
+        Shortcut to get the module version.
         """
         return self.cfg['version']
 
@@ -1863,7 +1862,7 @@ class EasyBlock:
                 msg += f"and paths='{env_var}'"
                 self.log.debug(msg)
 
-    def expand_module_search_path(self, search_path, path_type=ModEnvVarType.PATH_WITH_FILES):
+    def expand_module_search_path(self, *_, **__):
         """
         REMOVED in EasyBuild 5.1, use EasyBlock.module_load_environment.expand_paths instead
         """
@@ -2395,6 +2394,10 @@ class EasyBlock:
         fake_mod_data = None
 
         if with_build_deps:
+            if extra_modules:
+                print_warning("`with_build_deps` overwrites `extra_modules` in fake_module_environment. "
+                              "Until EasyBuild 6 add the build dependencies to `extra_modules` instead",
+                              log=self.log)
             # load modules for build dependencies as extra modules
             extra_modules = [dep['short_mod_name'] for dep in self.cfg.dependencies(build_only=True)]
 
@@ -2406,6 +2409,28 @@ class EasyBlock:
             # cleanup (unload fake module, remove fake module dir)
             if fake_mod_data:
                 self.clean_up_fake_module(fake_mod_data)
+
+    @contextmanager
+    def sanity_check_module_environment(self, extra_modules=None, check_loaded=True):
+        """Load/Unload module for performing sanity checks"""
+        if self.sanity_check_module_loaded and check_loaded:
+            raise EasyBuildError("Sanity check module is already loaded and must not be loaded again")
+
+        if self.sanity_check_module_loaded:
+            unload_module = False
+        else:
+            self.sanity_check_load_module(extra_modules=extra_modules)
+            unload_module = True
+
+        try:
+            yield
+        finally:
+            # cleanup (unload fake module, remove fake module dir)
+            if unload_module:
+                if self.fake_mod_data:
+                    self.clean_up_fake_module(self.fake_mod_data)
+                    self.fake_mod_data = None
+                self.sanity_check_module_loaded = False
 
     def guess_start_dir(self):
         """
