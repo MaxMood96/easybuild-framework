@@ -34,6 +34,7 @@ Unit tests for filetools.py
 import datetime
 import filecmp
 import glob
+import importlib
 import logging
 import os
 import re
@@ -118,6 +119,14 @@ class FileToolsTest(EnhancedTestCase):
         for (fn, expected_cmd) in tests:
             cmd = ft.extract_cmd(fn)
             self.assertEqual(expected_cmd, cmd)
+
+        # Fake bsdtar command, if exists, is preferred
+        fake_bsdtar = os.path.join(self.test_prefix, 'bin', 'bsdtar')
+        ft.write_file(fake_bsdtar, '#!/bin/bash\necho "fake bsdtar"')
+        ft.adjust_permissions(fake_bsdtar, stat.S_IXUSR)
+        os.environ['PATH'] = '%s:%s' % (os.path.dirname(fake_bsdtar), os.getenv('PATH', ''))
+        new_ft = importlib.reload(ft)  # Force reload to get new EXTRACT_CMDS
+        self.assertEqual("bsdtar xf test.iso", new_ft.extract_cmd('test.iso'))
 
         self.assertEqual("unzip -qq -o test.zip", ft.extract_cmd('test.zip', True))
 
