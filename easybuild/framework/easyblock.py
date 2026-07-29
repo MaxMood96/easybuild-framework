@@ -4323,7 +4323,7 @@ class EasyBlock:
     def sanity_check_load_module(self, extension=None, extra_modules=None):
         """
         Load module to prepare environment for sanity check
-        extension - DEPRECATED
+        :param extension: DEPRECATED: indicates whether this method is called for an extension
         """
         if extension is not None:
             self.log.deprecated(
