@@ -85,7 +85,7 @@ from easybuild.tools.build_details import get_build_stats
 from easybuild.tools.build_log import EasyBuildError, EasyBuildExit, dry_run_msg, dry_run_warning, dry_run_set_dirs
 from easybuild.tools.build_log import print_error_and_exit, print_msg, print_warning
 from easybuild.tools.config import CHECKSUM_PRIORITY_JSON, DEFAULT_ENVVAR_USERS_MODULES
-from easybuild.tools.config import EASYBUILD_SOURCES_URL, EBPYTHONPREFIXES  # noqa
+from easybuild.tools.config import EASYBUILD_SOURCES_URL, EBPYTHONPREFIXES  # noqa # pylint:disable=unused-import
 from easybuild.tools.config import FORCE_DOWNLOAD_ALL, FORCE_DOWNLOAD_PATCHES, FORCE_DOWNLOAD_SOURCES
 from easybuild.tools.config import MOD_SEARCH_PATH_HEADERS, PYTHONPATH, SEARCH_PATH_BIN_DIRS, SEARCH_PATH_LIB_DIRS
 from easybuild.tools.config import build_option, build_path, get_failed_install_build_dirs_path
@@ -3467,6 +3467,16 @@ class EasyBlock:
 
     def _dispatch_sanity_check_step(self, *args, **kwargs):
         """Decide whether to run the dry-run or the real version of the sanity-check step"""
+        if 'extension' in kwargs:
+            extension = kwargs.pop('extension')
+            self.log.deprecated(
+                "Passing `extension` to `sanity_check_step` is no longer necessary "
+                f"(Easyblock: {self.__class__.__name__}).",
+                '6.0',
+            )
+            if extension != self.is_extension:
+                raise EasyBuildError('Unexpected value for `extension` argument. '
+                                     f'Should be: {self.is_extension}, got:  {extension}')
         if self.dry_run:
             self._sanity_check_step_dry_run(*args, **kwargs)
         else:
@@ -4335,23 +4345,34 @@ class EasyBlock:
             self.sanity_check_fail_msgs.append(overall_fail_msg + ', '.join(x[0] for x in failed_exts))
             self.sanity_check_fail_msgs.extend(x[1] for x in failed_exts)
 
-    def sanity_check_load_module(self, extension=False, extra_modules=None):
+    def sanity_check_load_module(self, extension=None, extra_modules=None):
         """
         Load module to prepare environment for sanity check
+        :param extension: DEPRECATED: indicates whether this method is called for an extension
         """
+        if extension is not None:
+            self.log.deprecated(
+                "Passing `extension` to `sanity_check_load_module` is no longer necessary "
+                f"(Easyblock: {self.__class__.__name__}).",
+                '6.0',
+            )
+            if extension != self.is_extension:
+                raise EasyBuildError('Unexpected value for `extension` argument. '
+                                     f'Should be: {self.is_extension}, got:  {extension}')
+        del extension  # Avoid accidental use
+
+        if self.is_extension:
+            return self.fake_mod_data
 
         # skip loading of fake module when using --sanity-check-only, load real module instead
-        if build_option('sanity_check_only') and not extension:
+        if build_option('sanity_check_only'):
             self.log.info("Loading real module for %s %s: %s", self.name, self.version, self.short_mod_name)
             self.load_module(extra_modules=extra_modules)
             self.sanity_check_module_loaded = True
-
         # only load fake module for non-extensions, and not during dry run
-        elif not (extension or self.dry_run):
-
+        elif not (self.is_extension or self.dry_run):
             if extra_modules:
                 self.log.info("Loading extra modules for sanity check: %s", ', '.join(extra_modules))
-
             try:
                 # unload all loaded modules before loading fake module
                 # this ensures that loading of dependencies is tested, and avoids conflicts with build dependencies
@@ -4363,15 +4384,26 @@ class EasyBlock:
 
         return self.fake_mod_data
 
-    def _sanity_check_step(self, custom_paths=None, custom_commands=None, extension=False, extra_modules=None):
+    def _sanity_check_step(self, custom_paths=None, custom_commands=None, extension=None, extra_modules=None):
         """
         Real version of sanity_check_step method.
 
         :param custom_paths: custom sanity check paths to check existence for
         :param custom_commands: custom sanity check commands to run
-        :param extension: indicates whether or not sanity check is run for an extension
+        :param extension: DEPRECATED: indicated whether sanity check is run for an extension, now ignored
         :param extra_modules: extra modules to load before running sanity check commands
         """
+        if extension is not None:
+            self.log.deprecated(
+                "Passing `extension` to `sanity_check_step` is no longer necessary "
+                f"(Easyblock: {self.__class__.__name__}).",
+                '6.0',
+            )
+            if extension != self.is_extension:
+                raise EasyBuildError('Unexpected value for `extension` argument. '
+                                     f'Should be: {self.is_extension}, got:  {extension}')
+        del extension  # Avoid accidental use
+
         paths, path_keys_and_check, commands = self._sanity_check_step_common(custom_paths, custom_commands)
 
         # helper function to sanity check (alternatives for) one particular path
@@ -4429,7 +4461,7 @@ class EasyBlock:
                 trace_msg("%s %s found: %s" % (typ, xs2str(xs), ('FAILED', 'OK')[found]))
 
         if not self.sanity_check_module_loaded:
-            self.sanity_check_load_module(extension=extension, extra_modules=extra_modules)
+            self.sanity_check_load_module(extra_modules=extra_modules)
 
         # allow oversubscription of P processes on C cores (P>C) for software installed on top of Open MPI;
         # this is useful to avoid failing of sanity check commands that involve MPI
@@ -4458,7 +4490,7 @@ class EasyBlock:
             trace_msg(f"result for command '{cmd}': {cmd_result_str}")
 
         # also run sanity check for extensions (unless we are an extension ourselves)
-        if not extension:
+        if not self.is_extension:
             if build_option('skip_extensions'):
                 self.log.info("Skipping sanity check for extensions since skip-extensions is enabled...")
             else:
