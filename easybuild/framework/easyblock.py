@@ -1996,7 +1996,7 @@ class EasyBlock:
         Each entry should be a (name, version) tuple or just (name, ) if no version exists.
         Custom EasyBlocks may override this to add extensions that cannot be found automatically.
 
-        :param formatted: boolean indicating whether to format the extension name. If True, format using
+        :param formatted: boolean indicating whether the extension name should be formatted. If True, format using
                           the function defined by the exts_formatter parameter.
         """
         # Each extension in exts_list is either a string or a list/tuple with name, version as first entries
@@ -2017,6 +2017,9 @@ class EasyBlock:
         if formatted:
             formatter = self.cfg.get('exts_formatter')
             if formatter:
+                if not callable(formatter):
+                    raise EasyBuildError("Parameter exts_formatter should be a function that accepts the extension name"
+                                         "and returns the formatted name.")
                 exts_list = [(formatter(x), y) for (x, y) in exts_list]
 
         return exts_list
