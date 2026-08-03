@@ -656,6 +656,8 @@ class Toolchain:
         tc_mod = None if system_toolchain else self.det_short_module_name()
         dep_mods = [dep['short_mod_name'] for dep in self.dependencies]
 
+        mods_to_load = []
+
         if self.dry_run:
             if not system_toolchain:
                 dry_run_msg("Loading toolchain module...\n", silent=silent)
@@ -683,7 +685,6 @@ class Toolchain:
             mods_exist = self.modules_tool.exist(dep_mods)
 
             # load available modules for dependencies, simulate load for others
-            mods_to_load = []
             for dep, dep_mod_exists in zip(self.dependencies, mods_exist):
                 mod_name = dep['short_mod_name']
                 if dep_mod_exists:
@@ -699,7 +700,6 @@ class Toolchain:
             self.modules_tool.load(mods_to_load)
 
         else:
-            mods_to_load = []
             if not system_toolchain:
                 # make sure toolchain is available using short module name by running 'module use' on module path subdir
                 if self.init_modpaths:
@@ -737,7 +737,7 @@ class Toolchain:
             self.modules_tool.load(mods_to_load)
 
         # append toolchain + dependency modules to list of modules
-        self.modules.extend([tc_mod] + dep_mods)
+        self.modules.extend(mods_to_load)
 
         # define $EBROOT* and $EBVERSION* for external modules, if metadata is available
         for dep in [d for d in self.dependencies if d['external_module']]:
