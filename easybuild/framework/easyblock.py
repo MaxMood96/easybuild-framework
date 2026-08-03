@@ -2169,6 +2169,12 @@ class EasyBlock:
         else:
             with self.fake_module_environment(with_build_deps=True):
                 self.log.debug("List of loaded modules: %s", self.modules_tool.list())
+                self.log.debug("Determining build environment for extensions...")
+                # reset toolchain instance before calling prepare again to get pristine build environment;
+                # this is required because of the complex mechanism used to determine values for environment
+                # variables, without this value for environment variable like $MPICXX would be duplicated,
+                # see https://github.com/easybuilders/easybuild-framework/issues/4948
+                self.toolchain.reset()
                 # don't reload modules for toolchain, there is no need
                 # since they will be loaded already by the fake module
                 self.toolchain.prepare(onlymod=self.cfg['onlytcmod'], deps=self.cfg.dependencies(),
