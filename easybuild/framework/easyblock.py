@@ -262,6 +262,9 @@ class EasyBlock:
 
         self.module_load_environment = ModuleLoadEnvironment(aliases=mod_load_aliases)
 
+        # placeholder for cached build environment
+        self.cached_build_env = None
+
         # determine install subdirectory, based on module name
         self.install_subdir = None
 
@@ -2230,7 +2233,8 @@ class EasyBlock:
             run_hook(SINGLE_EXTENSION, self.hooks, post_step_hook=True, args=[ext])
 
         # restore "parent" build environment (in which fake module is not loaded)
-        restore_env(self.cached_build_env)
+        if self.cached_build_env:
+            restore_env(self.cached_build_env)
 
     def install_extensions_parallel(self, install=True):
         """
