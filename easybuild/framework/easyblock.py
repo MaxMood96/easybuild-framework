@@ -2169,13 +2169,12 @@ class EasyBlock:
         if self.dry_run:
             self.dry_run_msg("defining build environment based on cached build environment from prepare step...")
         else:
-            self.log.debug("Determining build environment for extensions, based on cached build environment from prepare step...")
+            self.log.debug("Determining build environment for extensions, based on cached build environment...")
             # restore build environment if it was cached in prepare_step
             if self.cached_build_env:
                 restore_env(self.cached_build_env)
 
             # load fake module file to get fully correct environment for installing extensions
-            fake_mod_data = None
             with self.fake_module_environment(with_build_deps=True):
                 self.log.debug("List of loaded modules: %s", self.modules_tool.list())
                 build_env = copy_current_env()
