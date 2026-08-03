@@ -2229,6 +2229,9 @@ class EasyBlock:
 
             run_hook(SINGLE_EXTENSION, self.hooks, post_step_hook=True, args=[ext])
 
+        # restore "parent" build environment (in which fake module is not loaded)
+        restore_env(self.cached_build_env)
+
     def install_extensions_parallel(self, install=True):
         """
         Install extensions in parallel.
@@ -3105,6 +3108,9 @@ class EasyBlock:
                     "Updated empty 'cuda_compute_capabilities' option with default CUDA compute capability "
                     f"defined in nvidia-compilers: {self.cfg['cuda_compute_capabilities']}"
                 )
+
+        # cache build environment, so we can restore it later (when installing extensions)
+        self.cached_build_env = copy_current_env()
 
         # guess directory to start configure/build/install process in, and move there
         if start_dir:
