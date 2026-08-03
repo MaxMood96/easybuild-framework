@@ -667,7 +667,7 @@ class Toolchain:
                 else:
                     # first simulate loads for toolchain dependencies, if required information is available
                     for tc_dep in self.tcdeps:
-                        mod_name = tcdep['short_mod_name']
+                        mod_name = tc_dep['short_mod_name']
                         dry_run_msg(f"module load {mod_name} [SIMULATED]", silent=silent)
                         # 'use '$EBROOTNAME' as value for dep install prefix (looks nice in dry run output)
                         deproot = '$' + get_software_root_env_var_name(tc_dep['name'])
