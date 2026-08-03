@@ -85,6 +85,11 @@ _log = fancylogger.getLogger('filetools', fname=False)
 # easyblock class prefix
 EASYBLOCK_CLASS_PREFIX = 'EB_'
 
+FALLBACK_SOURCE_URLS = [
+    ('https://ftpmirror.gnu.org/gnu/', 'https://ftp.gnu.org/gnu/'),
+    ('https://ftp.gnu.org/gnu/', 'https://ftpmirror.gnu.org/gnu/'),
+]
+
 # character map for encoding strings
 STRING_ENCODING_CHARMAP = {
     r' ': "_space_",
@@ -871,6 +876,8 @@ def download_file(filename, url, path, forced=False, trace=True, max_attempts=No
     wait = False
     wait_time = initial_wait_time
 
+    fallback_src_urls_tried = []
+
     while not downloaded and attempt_cnt < max_attempts:
         attempt_cnt += 1
         try:
@@ -917,6 +924,18 @@ def download_file(filename, url, path, forced=False, trace=True, max_attempts=No
                 break
             else:
                 _log.warning("HTTPError occurred while trying to download %s to %s: %s" % (url, path, err))
+            # if we're about to give up, consider automatic fallback URL, and try again...
+            if attempt_cnt == max_attempts:
+                for orig_src_url, fallback_src_url in FALLBACK_SOURCE_URLS:
+                    if url.startswith(orig_src_url) and fallback_src_url not in fallback_src_urls_tried:
+                        url = fallback_src_url + url[len(orig_src_url):]
+                        url_req = std_urllib.Request(url, headers=headers)
+                        used_urllib = std_urllib
+                        switch_to_requests = False
+                        _log.info(f"Trying again with fallback URL {fallback_src_url} for {orig_src_url}: {url}")
+                        attempt_cnt = 0
+                        fallback_src_urls_tried.append(fallback_src_url)
+                        break
         except IOError as err:
             _log.warning("IOError occurred while trying to download %s to %s: %s" % (url, path, err))
             error_re = re.compile(r"<urlopen error \[Errno 1\] _ssl.c:.*: error:.*:"
