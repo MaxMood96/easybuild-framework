@@ -2166,27 +2166,22 @@ class EasyBlock:
 
         exts_cnt = len(self.ext_instances)
 
-        # determine build environment, and cache it
+        # determine up build environment, and cache it so we can quickly restore it
         if self.dry_run:
-            self.dry_run_msg("defining build environment based on toolchain (options) and dependencies...")
+            self.dry_run_msg("defining build environment based on cached build environment from prepare step...")
         else:
+            self.log.debug("Determining build environment for extensions, based on cached build environment from prepare step...")
+            # restore build environment if it was cached in prepare_step
+            if self.cached_build_env:
+                restore_env(self.cached_build_env)
+
+            # load fake module file to get fully correct environment for installing extensions
+            fake_mod_data = None
             with self.fake_module_environment(with_build_deps=True):
                 self.log.debug("List of loaded modules: %s", self.modules_tool.list())
-                self.log.debug("Determining build environment for extensions...")
-                # reset toolchain instance before calling prepare again to get pristine build environment;
-                # this is required because of the complex mechanism used to determine values for environment
-                # variables, without this value for environment variable like $MPICXX would be duplicated,
-                # see https://github.com/easybuilders/easybuild-framework/issues/4948
-                self.toolchain.reset()
-                # don't reload modules for toolchain, there is no need
-                # since they will be loaded already by the fake module
-                self.toolchain.prepare(onlymod=self.cfg['onlytcmod'], deps=self.cfg.dependencies(),
-                                       silent=True, loadmod=False,
-                                       rpath_filter_dirs=self.rpath_filter_dirs,
-                                       rpath_include_dirs=self.rpath_include_dirs,
-                                       rpath_wrappers_dir=self.rpath_wrappers_dir)
-
                 build_env = copy_current_env()
+                fake_mod_file_path = self.module_generator.get_module_filepath(fake=True)
+                fake_mod_file_txt = read_file(fake_mod_file_path)
 
         for idx, ext in enumerate(self.ext_instances):
             self.log.info("Starting extension %s", ext.name)
@@ -2213,6 +2208,16 @@ class EasyBlock:
 
                 # restore build environment for this extension
                 restore_env(build_env, log_changes=False)
+
+                # re-generate fake module file, and check if it is different from before;
+                # if so, we need to reload it;
+                # if not, we can just restore build environment we determined before starting for loop
+                self.make_module_step(fake=True)
+                new_fake_mod_file_txt = read_file(fake_mod_file_path)
+                if new_fake_mod_file_txt != fake_mod_file_txt:
+                    self.log.info("Re-loading module {self.short_mod_name}, contents of fake module file changed!")
+                    self.modules_tool.load([self.short_mod_name])
+                    build_env = copy_current_env()
 
                 try:
                     ext.install_extension_substep("pre_install_extension")
