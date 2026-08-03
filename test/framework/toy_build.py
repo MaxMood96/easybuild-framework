@@ -2494,6 +2494,37 @@ class ToyBuildTest(EnhancedTestCase):
         regex = re.compile('^.*/eb-[^/]+/eb-sanity-check-[^/]+\n[ ]*0$')
         self.assertTrue(regex.match(out_txt), f"Pattern '{regex.pattern}' should match in: {out_txt}")
 
+    def test_toy_extension_sanity_check(self):
+        """Check sanity check for extensions:
+        Custom_commands from easyblocks are run.
+        Paths are checked only once: The default for sanity_check_paths in extensions is empty."""
+        test_ec_txt = TOY_EC_TXT
+        test_ec_txt += '\n' + textwrap.dedent("""
+            exts_list = [
+                ('barbar', '0.0', {
+                    'exts_filter': ('ls -l lib/lib%(ext_name)s.a', ''),
+                    'toy_custom_sanity_check_cmds': ['echo "Run-Custom-Cmd for %(name)s" && PLACEHOLDER'],
+                    'use_custom_sanity_check_paths': False,
+                })
+            ]
+        """)
+        test_ec = os.path.join(self.test_prefix, 'test.eb')
+        write_file(test_ec, test_ec_txt.replace('PLACEHOLDER', 'false'))
+        error_pattern = 'sanity check command echo "Run-Custom-Cmd for barbar" && false failed with exit code 1'
+        with self.mocked_stdout_stderr(), self.log_to_testlogfile() as logfile:
+            self.assertErrorRegex(EasyBuildError, error_pattern, self._test_toy_build, ec_file=test_ec,
+                                  raise_error=True, verbose=False)
+            logtxt = read_file(logfile)
+        check_bin_msg = 'Sanity check: found (non-empty) directory bin'
+        self.assertEqual(logtxt.count(check_bin_msg), 1, "Check for 'bin' folder should only be done once")
+
+        write_file(test_ec, test_ec_txt.replace('PLACEHOLDER', 'true'))
+        with self.mocked_stdout_stderr(), self.log_to_testlogfile() as logfile:
+            self._test_toy_build(ec_file=test_ec, raise_error=True)
+            logtxt = read_file(logfile)
+        self.assertRegex(logtxt, 'sanity check command .*Run-Custom-Cmd for barbar.*ran successfully',)
+        self.assertEqual(logtxt.count(check_bin_msg), 1, "Check for 'bin' folder should only be done once")
+
     def test_sanity_check_paths_lib64(self):
         """Test whether fallback in sanity check for lib64/ equivalents of library files works."""
         # modify test easyconfig: move lib/libtoy.a to lib64/libtoy.a
@@ -2710,12 +2741,12 @@ class ToyBuildTest(EnhancedTestCase):
         stdout = self.get_stdout()
         self.mock_stdout(False)
 
-        pattern_lines = [
-            r"^== sanity checking\.\.\.",
-            r"  >> file 'bin/toy' found: OK",
-        ]
-        regex = re.compile(r'\n'.join(pattern_lines), re.M)
-        self.assertTrue(regex.search(stdout), "Pattern '%s' should be found in: %s" % (regex.pattern, stdout))
+        expected_out = textwrap.dedent("""
+            == sanity checking...
+              >> loading modules: toy/0.0...
+              >> file 'bin/toy' found: OK
+        """)
+        self.assertIn(expected_out, stdout)
 
         # no directories are checked in sanity check now, only files (since dirs is an empty list)
         regex = re.compile(r"directory .* found:", re.M)
@@ -3497,19 +3528,19 @@ class ToyBuildTest(EnhancedTestCase):
                 r'',
             ]),
             r"  >> command completed: exit 0, ran in .*",
-            r'^' + r'\n'.join([
-                r"== sanity checking\.\.\.",
-                r"  >> file 'bin/yot' or 'bin/toy' found: OK",
-                r"  >> \(non-empty\) directory 'bin' found: OK",
-                r"  >> loading modules: toy/0.0\.\.\.",
-                r"  >> running command 'toy' \.\.\.",
-                r"  >> result for command 'toy': OK",
-            ]) + r'$',
             r"^== creating module\.\.\.\n  >> generating module file @ .*/modules/all/toy/0\.0(?:\.lua)?$",
         ]
-        for pattern in patterns:
-            regex = re.compile(pattern, re.M)
-            self.assertTrue(regex.search(stdout), "Pattern '%s' found in: %s" % (regex.pattern, stdout))
+        self.assert_multi_regex(patterns, stdout)
+        expected_stdout = textwrap.dedent("""
+            == sanity checking...
+              >> loading modules: toy/0.0...
+              >> file 'bin/yot' or 'bin/toy' found: OK
+              >> (non-empty) directory 'bin' found: OK
+              >> loading modules: toy/0.0...
+              >> running command 'toy' ...
+              >> result for command 'toy': OK
+        """)
+        self.assertIn(expected_stdout, stdout)
 
     def test_toy_build_hooks(self):
         """Test use of --hooks."""
