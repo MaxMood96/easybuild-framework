@@ -123,6 +123,7 @@ from easybuild.tools.repository.repository import init_repository
 from easybuild.tools.systemtools import check_linked_shared_libs, det_parallelism
 from easybuild.tools.systemtools import get_cuda_architectures
 from easybuild.tools.systemtools import get_linked_libs_raw, get_shared_lib_ext, pick_system_specific_value, use_group
+from easybuild.tools.toolchain.toolchain import RPATH_WRAPPERS_SUBDIR
 from easybuild.tools.utilities import INDENT_4SPACES, get_class_for, nub, quote_str
 from easybuild.tools.utilities import remove_unwanted_chars, time2str, trace_msg
 from easybuild.tools.version import this_is_easybuild, VERBOSE_VERSION, VERSION
@@ -2222,6 +2223,19 @@ class EasyBlock:
 
                     self.log.info(f"Re-loading (fake) module {self.short_mod_name}")
                     self.modules_tool.load([self.short_mod_name])
+
+                    # after re-loading fake module the path to RPATH wrappers will be too far down in $PATH,
+                    # so we need to bump it back up...
+                    path_env_var = os.getenv('PATH')
+                    self.log.debug("$PATH after re-loading fake module: {path_env_var}")
+                    path_entries = path_env_var.split(os.pathsep)
+                    new_path_entries = []
+                    for path_entry in path_entries:
+                        if RPATH_WRAPPERS_SUBDIR in path_entry.split(os.path.sep):
+                            new_path_entries.append(path_entry)
+                    new_path_entries.extend(p for p in path_entries if p not in new_path_entries)
+                    setvar('PATH', os.pathsep.join(new_path_entries))
+
                     build_env = copy_current_env()
 
                 try:
