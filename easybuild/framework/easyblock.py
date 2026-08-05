@@ -2218,28 +2218,6 @@ class EasyBlock:
                 # restore build environment for this extension
                 restore_env(build_env, log_changes=False)
 
-                # re-generate fake module file, and check if it is different from before;
-                # if so, we need to re-determine the build environment to use
-                # by re-loading the fake module and calling toolchain.prepare
-                self.make_module_step(fake=True)
-                new_fake_mod_file_txt = read_file(fake_mod_file_path)
-                if new_fake_mod_file_txt != fake_mod_file_txt:
-                    diff_lines = difflib.ndiff(fake_mod_file_txt.splitlines(), new_fake_mod_file_txt.splitlines())
-                    diff_txt = '\n'.join(diff_lines)
-                    self.log.info("Contents of fake module file have changed, diff: " + diff_txt)
-
-                    fake_mod_file_txt = new_fake_mod_file_txt
-
-                    self.log.debug("Re-determining build environment for extensions...")
-                    with self.fake_module_environment(with_build_deps=True):
-                        self.toolchain.reset()
-                        self.toolchain.prepare(onlymod=self.cfg['onlytcmod'], deps=self.cfg.dependencies(),
-                                               silent=True, loadmod=False,
-                                               rpath_filter_dirs=self.rpath_filter_dirs,
-                                               rpath_include_dirs=self.rpath_include_dirs,
-                                               rpath_wrappers_dir=self.rpath_wrappers_dir)
-
-                        build_env = copy_current_env()
                 try:
                     ext.install_extension_substep("pre_install_extension")
                     with self.module_generator.start_module_creation():
@@ -2253,6 +2231,29 @@ class EasyBlock:
                         print_msg("\t... (took %s)", time2str(ext_duration), log=self.log, silent=self.silent)
                     elif self.logdebug or build_option('trace'):
                         print_msg("\t... (took < 1 sec)", log=self.log, silent=self.silent)
+
+                # re-generate fake module file, and check if it is different from before;
+                # if so, we need to re-determine the build environment to use
+                # by re-loading the fake module and calling toolchain.prepare
+                self.make_module_step(fake=True)
+                new_fake_mod_file_txt = read_file(fake_mod_file_path)
+                if new_fake_mod_file_txt != fake_mod_file_txt:
+                    diff_lines = difflib.ndiff(fake_mod_file_txt.splitlines(), new_fake_mod_file_txt.splitlines())
+                    diff_txt = '\n'.join(diff_lines)
+                    self.log.info("Contents of fake module file have changed, diff: " + diff_txt)
+
+                    fake_mod_file_txt = new_fake_mod_file_txt
+
+                    self.log.info("Re-determining build environment for extensions...")
+                    with self.fake_module_environment(with_build_deps=True):
+                        self.toolchain.reset()
+                        self.toolchain.prepare(onlymod=self.cfg['onlytcmod'], deps=self.cfg.dependencies(),
+                                               silent=True, loadmod=False,
+                                               rpath_filter_dirs=self.rpath_filter_dirs,
+                                               rpath_include_dirs=self.rpath_include_dirs,
+                                               rpath_wrappers_dir=self.rpath_wrappers_dir)
+
+                        build_env = copy_current_env()
 
             self.update_exts_progress_bar(progress_info, progress_size=1)
 
