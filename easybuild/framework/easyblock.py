@@ -2168,17 +2168,28 @@ class EasyBlock:
         exts_cnt = len(self.ext_instances)
 
         # determine up build environment, and cache it so we can quickly restore it
-        if self.dry_run:
-            self.dry_run_msg("defining build environment based on cached build environment from prepare step...")
-        else:
-            self.log.debug("Determining build environment for extensions, based on cached build environment...")
-            # restore build environment if it was cached in prepare_step
-            if self.cached_build_env:
-                restore_env(self.cached_build_env)
-
+        self.log.debug("Determining build environment for extensions...")
+        if not self.dry_run:
             # load fake module file to get fully correct environment for installing extensions
             with self.fake_module_environment(with_build_deps=True):
                 self.log.debug("List of loaded modules: %s", self.modules_tool.list())
+
+                # reset toolchain instance before calling prepare again to get pristine build environment;
+                # this is required because of the complex mechanism used to determine values for environment
+                # variables, without this value for environment variable like $MPICXX would be duplicated,
+                # see https://github.com/easybuilders/easybuild-framework/issues/4948
+                self.toolchain.reset()
+
+                # determine build environment by preparing toolchain,
+                # which will for example also inject RPATH wrappers;
+                # don't reload modules for toolchain, there is no need
+                # since they will be loaded already by the fake module
+                self.toolchain.prepare(onlymod=self.cfg['onlytcmod'], deps=self.cfg.dependencies(),
+                                       silent=True, loadmod=False,
+                                       rpath_filter_dirs=self.rpath_filter_dirs,
+                                       rpath_include_dirs=self.rpath_include_dirs,
+                                       rpath_wrappers_dir=self.rpath_wrappers_dir)
+
                 build_env = copy_current_env()
                 fake_mod_file_path = self.module_generator.get_module_filepath(fake=True)
                 fake_mod_file_txt = read_file(fake_mod_file_path)
@@ -2234,7 +2245,7 @@ class EasyBlock:
                         if RPATH_WRAPPERS_SUBDIR in path_entry.split(os.path.sep):
                             new_path_entries.append(path_entry)
                     new_path_entries.extend(p for p in path_entries if p not in new_path_entries)
-                    setvar('PATH', os.pathsep.join(new_path_entries))
+                    env.setvar('PATH', os.pathsep.join(new_path_entries))
 
                     build_env = copy_current_env()
 
