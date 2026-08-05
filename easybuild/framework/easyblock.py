@@ -1955,13 +1955,12 @@ class EasyBlock:
         """
         Clean up fake module.
         """
-        fake_mod_path, env = fake_mod_data
-        # unload module and remove temporary module directory
+        fake_mod_path, orig_env = fake_mod_data
+
+        # remove temporary module directory
         # self.short_mod_name might not be set (e.g. during unit tests)
         if fake_mod_path and self.short_mod_name is not None:
             try:
-                self.modules_tool.unload([self.short_mod_name], hide_output=True)
-                self.modules_tool.remove_module_path(os.path.join(fake_mod_path, self.mod_subdir))
                 remove_dir(os.path.dirname(fake_mod_path))
             except OSError as err:
                 raise EasyBuildError("Failed to clean up fake module dir %s: %s", fake_mod_path, err)
@@ -1970,7 +1969,7 @@ class EasyBlock:
 
         # restore original environment
         self.log.info("Restoring environment after unloading fake module")
-        restore_env(env, log_changes=False)
+        restore_env(orig_env, log_changes=False)
 
     def load_dependency_modules(self):
         """Load dependency modules."""
