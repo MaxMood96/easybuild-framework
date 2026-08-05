@@ -680,6 +680,8 @@ class Toolchain:
                     tcroot = '$' + get_software_root_env_var_name(self.name)
                     self._simulated_load_dependency_module(self.name, self.version, {'prefix': tcroot})
 
+                self.modules.append(tc_mod)
+
             dry_run_msg("\nLoading modules for dependencies...\n", silent=silent)
 
             mods_exist = self.modules_tool.exist(dep_mods)
@@ -687,6 +689,7 @@ class Toolchain:
             # load available modules for dependencies, simulate load for others
             for dep, dep_mod_exists in zip(self.dependencies, mods_exist):
                 mod_name = dep['short_mod_name']
+                self.modules.append(mod_name)
                 if dep_mod_exists:
                     mods_to_load.append(mod_name)
                     dry_run_msg(f"module load {mod_name}", silent=silent)
@@ -736,8 +739,8 @@ class Toolchain:
             # actually load modules, all in one go
             self.modules_tool.load(mods_to_load)
 
-        # append toolchain + dependency modules to list of modules
-        self.modules.extend(mods_to_load)
+            # append toolchain + dependency modules to list of modules
+            self.modules.extend(mods_to_load)
 
         # define $EBROOT* and $EBVERSION* for external modules, if metadata is available
         for dep in [d for d in self.dependencies if d['external_module']]:
