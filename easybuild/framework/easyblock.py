@@ -2021,7 +2021,9 @@ class EasyBlock:
                     raise EasyBuildError("Parameter exts_formatter should be a function that accepts the extension name"
                                          "and returns the formatted name.")
                 self.log.debug(f"Using provided function to format extension names: {formatter}")
-                exts_list = [(formatter(x), y) for (x, y) in exts_list]
+                self.log.debug("Original extension names: " + ', '.join(x[0] for x in exts_list))
+                exts_list = [(formatter(x[0]), ) + x[1:] for x in exts_list]
+                self.log.debug("Re-formatted extension names: " + ', '.join(x[0] for x in exts_list))
             else:
                 self.log.debug("No formatter function for extension names specified")
 
