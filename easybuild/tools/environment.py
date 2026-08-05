@@ -187,6 +187,7 @@ def restore_env(env, log_changes=True):
     Restore active environment based on specified dictionary.
     :param log_changes: show the change in the log
     """
+    _log.debug(f"Restoring environment: {env}")
     modify_env(os.environ, env, verbose=False, log_changes=log_changes)
 
 
