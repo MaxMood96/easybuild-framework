@@ -965,6 +965,7 @@ def download_file(filename, url, path, forced=False, trace=True, max_attempts=No
                         switch_to_requests = False
                         _log.info(f"Trying again with fallback URL {fallback_src_url} for {orig_src_url}: {url}")
                         attempt_cnt = 0
+                        wait_time = initial_wait_time
                         fallback_src_urls_tried.append(fallback_src_url)
                         break
 
