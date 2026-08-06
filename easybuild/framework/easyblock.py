@@ -2155,15 +2155,13 @@ class EasyBlock:
         else:
             self.install_extensions_sequential(install=install)
 
-    def install_extensions_sequential(self, install=True):
+    def _install_extensions_det_build_env(self, fake_mod_file_path):
         """
-        Install extensions sequentially.
-
-        :param install: actually install extensions, don't just prepare environment for installing
+        Determine build environment for installing extensions
         """
-        self.log.info("Installing extensions sequentially...")
 
-        exts_cnt = len(self.ext_instances)
+        build_env = None
+        fake_mod_file_txt = None
 
         # determine up build environment, and cache it so we can quickly restore it
         self.log.debug("Determining build environment for extensions...")
@@ -2188,9 +2186,65 @@ class EasyBlock:
                                        rpath_include_dirs=self.rpath_include_dirs,
                                        rpath_wrappers_dir=self.rpath_wrappers_dir)
 
-                build_env = copy_current_env()
-                fake_mod_file_path = self.module_generator.get_module_filepath(fake=True)
+                # note: we must grab contents of fake module file within context of fake_module_environment
                 fake_mod_file_txt = read_file(fake_mod_file_path)
+
+                build_env = copy_current_env()
+
+        return build_env, fake_mod_file_txt
+
+    def _install_extensions_check_fake_mod_file(self, fake_mod_file_path, fake_mod_file_txt):
+        """
+        Check whether contents of fake module file have changed
+        after installing extension(s)
+        """
+        res = None
+
+        self.log.debug(f"Checking whether contents of fake module file {fake_mod_file_path} have changed...")
+
+        # re-generate fake module file, and check if it is different from before;
+        # if so, we need to re-determine the build environment to use
+        # by re-loading the fake module and calling toolchain.prepare
+        self.make_module_step(fake=True)
+        new_fake_mod_file_txt = read_file(fake_mod_file_path)
+        if new_fake_mod_file_txt != fake_mod_file_txt:
+            diff_lines = difflib.ndiff(fake_mod_file_txt.splitlines(), new_fake_mod_file_txt.splitlines())
+            diff_txt = '\n'.join(diff_lines)
+            self.log.info("Contents of fake module file have changed, diff: " + diff_txt)
+
+            fake_mod_file_txt = new_fake_mod_file_txt
+
+            self.log.info("Re-determining build environment for extensions...")
+            with self.fake_module_environment(with_build_deps=True):
+                self.toolchain.reset()
+                self.toolchain.prepare(onlymod=self.cfg['onlytcmod'], deps=self.cfg.dependencies(),
+                                       silent=True, loadmod=False,
+                                       rpath_filter_dirs=self.rpath_filter_dirs,
+                                       rpath_include_dirs=self.rpath_include_dirs,
+                                       rpath_wrappers_dir=self.rpath_wrappers_dir)
+
+                build_env = copy_current_env()
+
+                res = (build_env, fake_mod_file_txt)
+        else:
+            self.log.debug("Contents of fake module file have not changed")
+
+        return res
+
+    def install_extensions_sequential(self, install=True):
+        """
+        Install extensions sequentially.
+
+        :param install: actually install extensions, don't just prepare environment for installing
+        """
+        self.log.info("Installing extensions sequentially...")
+
+        exts_cnt = len(self.ext_instances)
+
+        # path to fake module file, so we can check if contents change after installing extensions
+        fake_mod_file_path = self.module_generator.get_module_filepath(fake=True)
+
+        build_env, fake_mod_file_txt = self._install_extensions_det_build_env(fake_mod_file_path)
 
         for idx, ext in enumerate(self.ext_instances):
             self.log.info("Starting extension %s", ext.name)
@@ -2232,28 +2286,9 @@ class EasyBlock:
                     elif self.logdebug or build_option('trace'):
                         print_msg("\t... (took < 1 sec)", log=self.log, silent=self.silent)
 
-                # re-generate fake module file, and check if it is different from before;
-                # if so, we need to re-determine the build environment to use
-                # by re-loading the fake module and calling toolchain.prepare
-                self.make_module_step(fake=True)
-                new_fake_mod_file_txt = read_file(fake_mod_file_path)
-                if new_fake_mod_file_txt != fake_mod_file_txt:
-                    diff_lines = difflib.ndiff(fake_mod_file_txt.splitlines(), new_fake_mod_file_txt.splitlines())
-                    diff_txt = '\n'.join(diff_lines)
-                    self.log.info("Contents of fake module file have changed, diff: " + diff_txt)
-
-                    fake_mod_file_txt = new_fake_mod_file_txt
-
-                    self.log.info("Re-determining build environment for extensions...")
-                    with self.fake_module_environment(with_build_deps=True):
-                        self.toolchain.reset()
-                        self.toolchain.prepare(onlymod=self.cfg['onlytcmod'], deps=self.cfg.dependencies(),
-                                               silent=True, loadmod=False,
-                                               rpath_filter_dirs=self.rpath_filter_dirs,
-                                               rpath_include_dirs=self.rpath_include_dirs,
-                                               rpath_wrappers_dir=self.rpath_wrappers_dir)
-
-                        build_env = copy_current_env()
+                res = self._install_extensions_check_fake_mod_file(fake_mod_file_path, fake_mod_file_txt)
+                if res:
+                    build_env, fake_mod_file_txt = res
 
             self.update_exts_progress_bar(progress_info, progress_size=1)
 
