@@ -2343,39 +2343,13 @@ class EasyBlock:
 
             self.update_exts_progress_bar(progress_info, progress_size=progress_size)
 
+        # amount of seconds to wait until running next iteration of the loop below
+        wait_time = 1
+
         while exts_queue or running_exts:
 
             # always go back to original work dir to avoid running stuff from a dir that no longer exists
             change_dir(self.orig_workdir)
-
-            # check for extension installations that have completed
-            installs_completed = False
-            if running_exts:
-                self.log.info(f"Checking for completed extension installations ({len(running_exts)} running)...")
-                for ext in running_exts[:]:
-                    if self.dry_run or ext.async_cmd_task.done():
-                        installs_completed = True
-                        res = ext.async_cmd_task.result()
-                        if res.exit_code == EasyBuildExit.SUCCESS:
-                            print_msg(f"Installation of extension {ext.name} completed!",
-                                      silent=self.silent, log=self.log)
-                            # run post-install method for extension from same working dir as installation of extension
-                            cwd = change_dir(res.work_dir)
-                            ext.install_extension_substep("post_install_extension")
-                            change_dir(cwd)
-                            running_exts.remove(ext)
-                            installed_ext_names.append(ext.name)
-                            update_exts_progress_bar_helper(running_exts, 1)
-                        else:
-                            raise_run_shell_cmd_error(res)
-                    else:
-                        self.log.debug(f"Installation of extension {ext.name} is still running...")
-
-            if installs_completed:
-                # check whether installed extensions result in changes to the contents of the fake module file
-                res = self._install_extensions_check_fake_mod_file(fake_mod_file_path, fake_mod_file_txt)
-                if res:
-                    build_env, fake_mod_file_txt = res
 
             # try to start as many extension installations as we can, taking into account number of available cores,
             # but only consider first 100 extensions still in the queue
@@ -2461,6 +2435,44 @@ class EasyBlock:
 
                         self.log.info(f"Started installation of extension {ext.name} in the background...")
                         update_exts_progress_bar_helper(running_exts, 0)
+
+            # check for extension installations that have completed
+            installs_completed = False
+            if running_exts:
+                self.log.info(f"Checking for completed extension installations ({len(running_exts)} running)...")
+                for ext in running_exts[:]:
+                    if self.dry_run or ext.async_cmd_task.done():
+                        installs_completed = True
+                        res = ext.async_cmd_task.result()
+                        if res.exit_code == EasyBuildExit.SUCCESS:
+                            print_msg(f"Installation of extension {ext.name} completed!",
+                                      silent=self.silent, log=self.log)
+                            # run post-install method for extension from same working dir as installation of extension
+                            cwd = change_dir(res.work_dir)
+                            ext.install_extension_substep("post_install_extension")
+                            change_dir(cwd)
+                            running_exts.remove(ext)
+                            installed_ext_names.append(ext.name)
+                            update_exts_progress_bar_helper(running_exts, 1)
+                        else:
+                            raise_run_shell_cmd_error(res)
+                    else:
+                        self.log.debug(f"Installation of extension {ext.name} is still running...")
+
+            if installs_completed:
+                # reset wait time between iterations
+                wait_time = 1
+                # check whether installed extensions result in changes to the contents of the fake module file
+                res = self._install_extensions_check_fake_mod_file(fake_mod_file_path, fake_mod_file_txt)
+                if res:
+                    build_env, fake_mod_file_txt = res
+            else:
+                # if no installations were completed, we should wait a bit before checking whether the installations
+                # of additional extensions can be started...
+                time.sleep(wait_time)
+                # wait a bit longer, with a max. wait time of 10 seconds
+                if wait_time < 10:
+                    wait_time += 1
 
             # print progress info after every iteration (unless that info is already shown via progress bar)
             if not show_progress_bars():
