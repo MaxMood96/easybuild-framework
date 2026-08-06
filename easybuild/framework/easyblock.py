@@ -1988,12 +1988,15 @@ class EasyBlock:
             exts_list = sorted(exts_list, key=str.lower)
         return ext_sep.join(exts_list)
 
-    def make_extension_list(self):
+    def make_extension_list(self, formatted=True):
         """
         Return a list of extension names and their versions included in this installation
 
         Each entry should be a (name, version) tuple or just (name, ) if no version exists.
         Custom EasyBlocks may override this to add extensions that cannot be found automatically.
+
+        :param formatted: boolean indicating whether the extension name should be formatted. If True, format using
+                          the function defined by the exts_formatter parameter.
         """
         # Each extension in exts_list is either a string or a list/tuple with name, version as first entries
         # As name can be a templated value we must resolve templates
@@ -2009,6 +2012,20 @@ class EasyBlock:
             else:
                 exts_list.append((resolve_template(ext[0], self.cfg.template_values),
                                   resolve_template(ext[1], self.cfg.template_values)))
+
+        if formatted:
+            formatter = self.cfg.get('exts_formatter')
+            if formatter:
+                if not callable(formatter):
+                    raise EasyBuildError("Parameter exts_formatter should be a function that accepts the extension name"
+                                         "and returns the formatted name.")
+                self.log.debug(f"Using provided function to format extension names: {formatter}")
+                self.log.debug("Original extension names: " + ', '.join(x[0] for x in exts_list))
+                exts_list = [(formatter(x[0]), ) + x[1:] for x in exts_list]
+                self.log.debug("Re-formatted extension names: " + ', '.join(x[0] for x in exts_list))
+            else:
+                self.log.debug("No formatter function for extension names specified")
+
         return exts_list
 
     def prepare_for_extensions(self):
