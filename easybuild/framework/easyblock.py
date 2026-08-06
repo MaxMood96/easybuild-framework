@@ -2445,7 +2445,7 @@ class EasyBlock:
                         installs_completed = True
                         res = ext.async_cmd_task.result()
                         if res.exit_code == EasyBuildExit.SUCCESS:
-                            print_msg(f"Installation of extension {ext.name} completed!",
+                            print_msg(f"installation of extension {ext.name} {ext.version or ''} completed!",
                                       silent=self.silent, log=self.log)
                             # run post-install method for extension from same working dir as installation of extension
                             cwd = change_dir(res.work_dir)
