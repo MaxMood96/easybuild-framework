@@ -2349,10 +2349,12 @@ class EasyBlock:
             change_dir(self.orig_workdir)
 
             # check for extension installations that have completed
+            installs_completed = False
             if running_exts:
                 self.log.info(f"Checking for completed extension installations ({len(running_exts)} running)...")
                 for ext in running_exts[:]:
                     if self.dry_run or ext.async_cmd_task.done():
+                        installs_completed = True
                         res = ext.async_cmd_task.result()
                         if res.exit_code == EasyBuildExit.SUCCESS:
                             print_msg(f"Installation of extension {ext.name} completed!",
@@ -2369,10 +2371,11 @@ class EasyBlock:
                     else:
                         self.log.debug(f"Installation of extension {ext.name} is still running...")
 
-            # check whether any of the installed extensions result in changes to the contents of the fake module file
-            res = self._install_extensions_check_fake_mod_file(fake_mod_file_path, fake_mod_file_txt)
-            if res:
-                build_env, fake_mod_file_txt = res
+            if installs_completed:
+                # check whether installed extensions result in changes to the contents of the fake module file
+                res = self._install_extensions_check_fake_mod_file(fake_mod_file_path, fake_mod_file_txt)
+                if res:
+                    build_env, fake_mod_file_txt = res
 
             # try to start as many extension installations as we can, taking into account number of available cores,
             # but only consider first 100 extensions still in the queue
