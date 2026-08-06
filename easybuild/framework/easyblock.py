@@ -2308,6 +2308,12 @@ class EasyBlock:
 
         thread_pool = ThreadPoolExecutor(max_workers=self.cfg.parallel)
 
+        # path to fake module file, so we can check if contents change after installing extensions
+        fake_mod_file_path = self.module_generator.get_module_filepath(fake=True)
+
+        self.log.debug("Determining build environment for extensions...")
+        build_env, fake_mod_file_txt = self._install_extensions_det_build_env(fake_mod_file_path)
+
         running_exts = []
         installed_ext_names = []
 
@@ -2361,6 +2367,11 @@ class EasyBlock:
                             raise_run_shell_cmd_error(res)
                     else:
                         self.log.debug(f"Installation of extension {ext.name} is still running...")
+
+            # check whether any of the installed extensions result in changes to the contents of the fake module file
+            res = self._install_extensions_check_fake_mod_file(fake_mod_file_path, fake_mod_file_txt)
+            if res:
+                build_env, fake_mod_file_txt = res
 
             # try to start as many extension installations as we can, taking into account number of available cores,
             # but only consider first 100 extensions still in the queue
@@ -2435,18 +2446,16 @@ class EasyBlock:
                     print_msg("starting installation of extension %s %s..." % tup, silent=self.silent, log=self.log)
 
                     if install and not self.dry_run:
-                        with self.fake_module_environment(with_build_deps=True):
-                            # don't reload modules for toolchain, there is no
-                            # need since they will be loaded by the fake module
-                            ext.toolchain.prepare(onlymod=self.cfg['onlytcmod'], deps=self.cfg.dependencies(),
-                                                  silent=True, loadmod=False,
-                                                  rpath_filter_dirs=self.rpath_filter_dirs,
-                                                  rpath_include_dirs=self.rpath_include_dirs,
-                                                  rpath_wrappers_dir=self.rpath_wrappers_dir)
-                            ext.install_extension_substep("pre_install_extension")
-                            ext.async_cmd_task = ext.install_extension_substep("install_extension_async", thread_pool)
-                            running_exts.append(ext)
-                            self.log.info(f"Started installation of extension {ext.name} in the background...")
+                        # restore build environment for this extension
+                        restore_env(build_env, log_changes=False)
+
+                        ext.install_extension_substep("pre_install_extension")
+
+                        # note: current build environment is copied when install_extension_async is called
+                        ext.async_cmd_task = ext.install_extension_substep("install_extension_async", thread_pool)
+                        running_exts.append(ext)
+
+                        self.log.info(f"Started installation of extension {ext.name} in the background...")
                         update_exts_progress_bar_helper(running_exts, 0)
 
             # print progress info after every iteration (unless that info is already shown via progress bar)
