@@ -85,6 +85,11 @@ _log = fancylogger.getLogger('filetools', fname=False)
 # easyblock class prefix
 EASYBLOCK_CLASS_PREFIX = 'EB_'
 
+FALLBACK_SOURCE_URLS = [
+    ('https://ftpmirror.gnu.org/gnu/', 'https://ftp.gnu.org/gnu/'),
+    ('https://ftp.gnu.org/gnu/', 'https://ftpmirror.gnu.org/gnu/'),
+]
+
 # character map for encoding strings
 STRING_ENCODING_CHARMAP = {
     r' ': "_space_",
@@ -876,7 +881,10 @@ def download_file(filename, url, path, forced=False, trace=True, max_attempts=No
     wait = False
     wait_time = initial_wait_time
 
+    fallback_src_urls_tried = []
+
     while not downloaded and attempt_cnt < max_attempts:
+        exception_raised = False
         attempt_cnt += 1
         try:
             if insecure:
@@ -910,6 +918,7 @@ def download_file(filename, url, path, forced=False, trace=True, max_attempts=No
             downloaded = True
             url_fd.close()
         except used_urllib.HTTPError as err:
+            exception_raised = True
             if used_urllib is std_urllib:
                 status_code = err.code
             if status_code == 403 and attempt_cnt == 1:
@@ -923,6 +932,7 @@ def download_file(filename, url, path, forced=False, trace=True, max_attempts=No
             else:
                 _log.warning("HTTPError occurred while trying to download %s to %s: %s" % (url, path, err))
         except IOError as err:
+            exception_raised = True
             _log.warning("IOError occurred while trying to download %s to %s: %s" % (url, path, err))
             error_re = re.compile(r"<urlopen error \[Errno 1\] _ssl.c:.*: error:.*:"
                                   "SSL routines:SSL23_GET_SERVER_HELLO:sslv3 alert handshake failure>")
@@ -934,20 +944,35 @@ def download_file(filename, url, path, forced=False, trace=True, max_attempts=No
                 exit_code=EasyBuildExit.FAIL_DOWNLOAD
             )
 
-        if not downloaded and attempt_cnt < max_attempts:
-            _log.info("Attempt %d of downloading %s to %s failed, trying again..." % (attempt_cnt, url, path))
-            if used_urllib is std_urllib and switch_to_requests:
-                if not HAVE_REQUESTS:
-                    raise EasyBuildError("SSL issues with urllib2. If you are using RHEL/CentOS 6.x please "
-                                         "install the python-requests and pyOpenSSL RPM packages and try again.")
-                _log.info("Downloading using requests package instead of urllib2")
-                used_urllib = requests
+        if not downloaded:
+            if attempt_cnt < max_attempts:
+                _log.info("Attempt %d of downloading %s to %s failed, trying again..." % (attempt_cnt, url, path))
+                if used_urllib is std_urllib and switch_to_requests:
+                    if not HAVE_REQUESTS:
+                        raise EasyBuildError("SSL issues with urllib2. If you are using RHEL/CentOS 6.x please "
+                                             "install the python-requests and pyOpenSSL RPM packages and try again.")
+                    _log.info("Downloading using requests package instead of urllib2")
+                    used_urllib = requests
 
-            if wait:
-                _log.info(f"Waiting for {wait_time} seconds before trying download of {url} again...")
-                time.sleep(wait_time)
-                # exponential backoff
-                wait_time *= 2
+                if wait:
+                    _log.info(f"Waiting for {wait_time} seconds before trying download of {url} again...")
+                    time.sleep(wait_time)
+                    # exponential backoff
+                    wait_time *= 2
+
+            # if we're about to give up, consider automatic fallback URL, and reset number of attemps...
+            elif attempt_cnt == max_attempts and exception_raised:
+                for orig_src_url, fallback_src_url in FALLBACK_SOURCE_URLS:
+                    if url.startswith(orig_src_url) and fallback_src_url not in fallback_src_urls_tried:
+                        url = fallback_src_url + url[len(orig_src_url):]
+                        url_req = std_urllib.Request(url, headers=headers)
+                        used_urllib = std_urllib
+                        switch_to_requests = False
+                        _log.info(f"Trying again with fallback URL {fallback_src_url} for {orig_src_url}: {url}")
+                        attempt_cnt = 0
+                        wait_time = initial_wait_time
+                        fallback_src_urls_tried.append(fallback_src_url)
+                        break
 
     if downloaded:
         _log.info("Successful download of file %s from url %s to path %s" % (filename, url, path))
