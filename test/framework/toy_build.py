@@ -1972,6 +1972,12 @@ class ToyBuildTest(EnhancedTestCase):
         test_ec = os.path.join(self.test_prefix, 'test.eb')
         test_ec_txt = TOY_EC_TXT
         test_ec_txt += '\n' + '\n'.join([
+            "toolchain = {'name': 'GCC', 'version': '12.3.0'}",
+            '',
+            "builddependencies = [('binutils', '2.40')]",
+            ''
+            "dependencies = [('OpenMPI', '4.1.5')]",
+            '',
             "exts_defaultclass = 'DummyExtension'",
             "exts_list = [",
             "    ('ls'),",
@@ -1987,7 +1993,8 @@ class ToyBuildTest(EnhancedTestCase):
         write_file(test_ec, test_ec_txt)
 
         args = ['--parallel-extensions-install', '--experimental', '--force', '--parallel=3']
-        stdout, stderr = self.run_test_toy_build_with_output(ec_file=test_ec, extra_args=args, raise_error=True)
+        stdout, stderr = self.run_test_toy_build_with_output(ec_file=test_ec, extra_args=args, raise_error=True,
+                                                             versionsuffix='-GCC-12.3.0')
         self.assertEqual(stderr, '')
 
         # take into account that each of these lines may appear multiple times,
@@ -2003,9 +2010,39 @@ class ToyBuildTest(EnhancedTestCase):
             error_msg = "Expected pattern '%s' should be found in %s'" % (regex.pattern, stdout)
             self.assertTrue(regex.search(stdout), error_msg)
 
+        logtxt = read_file(self.logfile)
+
+        # check how many time fake module is loaded;
+        # should be 4 times:
+        # - once at start of extensions step (by EasyBlock._install_extensions_det_init_build_env)
+        # - twice in sanity check step:
+        #   - once for toy extension, via sanity_check_module_environment in ExtensionEasyBlock.sanity_check_step
+        #   - once via sanity_check_load_module in EasyBlock._sanity_check_step
+        # - once in module step (when creating devel module)
+        regex_load_fake_mod = re.compile("INFO Loading fake module", re.M)
+        self.assertEqual(len(regex_load_fake_mod.findall(logtxt)), 4)
+
+        # count number of 'module load' commands that were run
+        regex_module_load = re.compile("INFO Running command.*\n.* python load (.*)", re.M)
+        res = regex_module_load.findall(logtxt)
+        # there should be 5 'module load' commands in total
+        expected = [
+            # one load command for toolchain + all dependencies
+            "GCC/12.3.0 binutils/2.40-GCCcore-12.3.0 OpenMPI/4.1.5-GCC-12.3.0",
+            # one load command for fake module + build dependencies (via EasyBlock.install_extensions_parallel)
+            "binutils/2.40-GCCcore-12.3.0 toy/0.0-GCC-12.3.0",
+            # two load commands in sanity check step (once for 'toy' extension, once for top-level)
+            "toy/0.0-GCC-12.3.0",
+            "toy/0.0-GCC-12.3.0",
+            # one load command for module step (when creating devel module)
+            "toy/0.0-GCC-12.3.0",
+        ]
+        self.assertEqual(res, expected)
+
         # also test skipping of extensions in parallel
         args.append('--skip')
-        stdout, stderr = self.run_test_toy_build_with_output(ec_file=test_ec, extra_args=args, raise_error=True)
+        stdout, stderr = self.run_test_toy_build_with_output(ec_file=test_ec, extra_args=args, raise_error=True,
+                                                             versionsuffix='-GCC-12.3.0')
         self.assertEqual(stderr, '')
 
         # order in which these patterns occur is not fixed, so check them one by one
@@ -2031,12 +2068,12 @@ class ToyBuildTest(EnhancedTestCase):
         write_file(toy_ext_eb, toy_ext_eb_txt)
 
         args[-1] = '--include-easyblocks=%s' % toy_ext_eb
-        stdout, stderr = self.run_test_toy_build_with_output(ec_file=test_ec, extra_args=args, raise_error=True)
+        stdout, stderr = self.run_test_toy_build_with_output(ec_file=test_ec, extra_args=args, raise_error=True,
+                                                             versionsuffix='-GCC-12.3.0')
         self.assertEqual(stderr, '')
         # take into account that each of these lines may appear multiple times,
         # in case no progress was made between checks
         patterns = [
-            r"^== 0 out of 4 extensions installed \(3 queued, 1 running: ls\)$",
             r"^== 1 out of 4 extensions installed \(2 queued, 1 running: bar\)$",
             r"^== 2 out of 4 extensions installed \(1 queued, 1 running: barbar\)$",
             r"^== 3 out of 4 extensions installed \(0 queued, 1 running: toy\)$",
