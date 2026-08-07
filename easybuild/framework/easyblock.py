@@ -2043,7 +2043,7 @@ class EasyBlock:
         Skip already installed extensions (checking sequentially),
         by removing them from list of Extension instances to install (self.ext_instances).
         """
-        print_msg("skipping installed extensions (sequentially)", log=self.log)
+        print_msg("skipping installed extensions (sequentially)", silent=self.silent, log=self.log)
 
         exts_cnt = len(self.ext_instances)
 
@@ -2073,7 +2073,7 @@ class EasyBlock:
         Skip already installed extensions (checking in parallel),
         by removing them from list of Extension instances to install (self.ext_instances).
         """
-        print_msg("skipping installed extensions (in parallel)", log=self.log)
+        print_msg("skipping installed extensions (in parallel)", silent=self.silent, log=self.log)
 
         cmds = [construct_exts_filter_cmds(exts_filter, ext) for ext in self.ext_instances]
         # Consider extensions that don't need checking as checked
@@ -2112,7 +2112,7 @@ class EasyBlock:
         retained_ext_instances = []
         for idx, ext in enumerate(self.ext_instances):
             if installed_exts[idx]:
-                print_msg(f"skipping extension {ext.name}", log=self.log)
+                print_msg(f"skipping extension {ext.name}", silent=self.silent, log=self.log)
             else:
                 retained_ext_instances.append(ext)
                 self.log.info("Not skipping %s", ext.name)
@@ -2482,7 +2482,8 @@ class EasyBlock:
                     running_ext_names = ', '.join(x.name for x in running_exts)
                 else:
                     running_ext_names = ', '.join(x.name for x in running_exts[:3]) + ", ..."
-                print_msg(msg % (installed_cnt, exts_cnt, queued_cnt, running_cnt, running_ext_names), log=self.log)
+                print_msg(msg % (installed_cnt, exts_cnt, queued_cnt, running_cnt, running_ext_names),
+                          silent=self.silent, log=self.log)
 
         thread_pool.shutdown()
 
