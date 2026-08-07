@@ -1195,6 +1195,9 @@ class ToyBuildTest(EnhancedTestCase):
         test_ec = os.path.join(TEST_ECS_DIR, 't', 'toy', 'toy-0.0-gompi-2018a-test.eb')
         with self.mocked_stdout_stderr():
             self._test_toy_build(ec_file=test_ec, versionsuffix='-gompi-2018a-test', extra_args=['--debug'])
+
+        # verify that bug that leads to duplicating values of environment variable is not re-introduced,
+        # see https://github.com/easybuilders/easybuild-framework/issues/4948
         logfile = read_file(self.logfile)
         self.assertNotRegex(logfile, r'mpicxx mpicxx')
 
