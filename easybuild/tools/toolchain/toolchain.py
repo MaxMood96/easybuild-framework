@@ -694,7 +694,7 @@ class Toolchain:
                     mods_to_load.append(mod_name)
                     dry_run_msg(f"module load {mod_name}", silent=silent)
                 else:
-                    dry_run_msg("module load {mod_name} [SIMULATED]", silent=silent)
+                    dry_run_msg(f"module load {mod_name} [SIMULATED]", silent=silent)
                     # 'use '$EBROOTNAME' as value for dep install prefix (looks nice in dry run output)
                     if not dep['external_module']:
                         deproot = '$' + get_software_root_env_var_name(dep['name'])
