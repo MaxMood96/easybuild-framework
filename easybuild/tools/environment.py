@@ -32,6 +32,8 @@ Authors:
 """
 import copy
 import os
+from pathlib import Path
+from typing import List, Union
 
 from easybuild.base import fancylogger
 from easybuild.tools.build_log import EasyBuildError, dry_run_msg
@@ -74,6 +76,11 @@ def get_changes():
     Return tracked changes made in environment.
     """
     return _changes
+
+
+def join_path_var(paths: List[Union[str, Path]]) -> str:
+    """Join a list of paths into a single path variable string, filtering out empty entries."""
+    return os.pathsep.join(str(path) for path in paths if path)
 
 
 def copy_current_env():
