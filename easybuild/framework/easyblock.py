@@ -2155,15 +2155,15 @@ class EasyBlock:
         else:
             self.install_extensions_sequential(install=install)
 
-    def _install_extensions_det_build_env(self, fake_mod_file_path):
+    def _install_extensions_det_init_build_env(self, fake_mod_file_path):
         """
-        Determine build environment for installing extensions
+        Determine initial build environment for installing extensions
         """
 
         build_env = None
         fake_mod_file_txt = None
 
-        # determine up build environment, and cache it so we can quickly restore it
+        # determine initial build environment to use for installing extensions
         self.log.debug("Determining build environment for extensions...")
         if not self.dry_run:
             # load fake module file to get fully correct environment for installing extensions
@@ -2244,7 +2244,7 @@ class EasyBlock:
         # path to fake module file, so we can check if contents change after installing extensions
         fake_mod_file_path = self.module_generator.get_module_filepath(fake=True)
 
-        build_env, fake_mod_file_txt = self._install_extensions_det_build_env(fake_mod_file_path)
+        build_env, fake_mod_file_txt = self._install_extensions_det_init_build_env(fake_mod_file_path)
 
         for idx, ext in enumerate(self.ext_instances):
             self.log.info("Starting extension %s", ext.name)
@@ -2312,7 +2312,7 @@ class EasyBlock:
         fake_mod_file_path = self.module_generator.get_module_filepath(fake=True)
 
         self.log.debug("Determining build environment for extensions...")
-        build_env, fake_mod_file_txt = self._install_extensions_det_build_env(fake_mod_file_path)
+        build_env, fake_mod_file_txt = self._install_extensions_det_init_build_env(fake_mod_file_path)
 
         running_exts = []
         installed_ext_names = []
