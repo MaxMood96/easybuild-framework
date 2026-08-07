@@ -3587,7 +3587,7 @@ class EasyBlock:
                 for entry in os.listdir(dirpath):
                     path = os.path.join(dirpath, entry)
                     if os.path.isfile(path):
-                        self.log.debug("Sanity checking file {path} for CUDA device code")
+                        self.log.debug(f"Sanity checking file {path} for CUDA device code")
                         files_to_check.append(path)
             else:
                 self.log.debug(f"Not sanity checking files in non-existing directory {dirpath}")
