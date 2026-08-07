@@ -710,7 +710,6 @@ class Toolchain:
                     for modpath in self.init_modpaths:
                         modpath = os.path.join(install_path('mod'), mod_path_suffix, modpath)
                         if os.path.exists(modpath):
-                            # FIXME
                             self.modules_tool.prepend_module_path(modpath)
 
                 self.log.debug(f"Loading module for toolchain: {tc_mod}")
