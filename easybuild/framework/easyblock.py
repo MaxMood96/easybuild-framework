@@ -48,6 +48,7 @@ Authors:
 import concurrent
 import contextlib
 import copy
+import difflib
 import functools
 import glob
 import inspect
@@ -92,7 +93,7 @@ from easybuild.tools.config import build_option, build_path, get_failed_install_
 from easybuild.tools.config import get_failed_install_logs_path, get_log_filename, get_repository, get_repositorypath
 from easybuild.tools.config import install_path, log_path, package_path, source_paths, source_paths_data
 from easybuild.tools.config import DATA, SOFTWARE
-from easybuild.tools.environment import restore_env, sanitize_env
+from easybuild.tools.environment import copy_current_env, restore_env, sanitize_env
 from easybuild.tools.filetools import CHECKSUM_TYPE_SHA256
 from easybuild.tools.filetools import adjust_permissions, apply_patch, back_up_file, change_dir, check_lock, clean_dir
 from easybuild.tools.filetools import compute_checksum, convert_name, copy_dir, copy_file, create_lock
@@ -261,6 +262,9 @@ class EasyBlock:
             ) from err
 
         self.module_load_environment = ModuleLoadEnvironment(aliases=mod_load_aliases)
+
+        # placeholder for cached build environment
+        self.cached_build_env = None
 
         # determine install subdirectory, based on module name
         self.install_subdir = None
@@ -1951,13 +1955,12 @@ class EasyBlock:
         """
         Clean up fake module.
         """
-        fake_mod_path, env = fake_mod_data
-        # unload module and remove temporary module directory
+        fake_mod_path, orig_env = fake_mod_data
+
+        # remove temporary module directory
         # self.short_mod_name might not be set (e.g. during unit tests)
         if fake_mod_path and self.short_mod_name is not None:
             try:
-                self.modules_tool.unload([self.short_mod_name], hide_output=True)
-                self.modules_tool.remove_module_path(os.path.join(fake_mod_path, self.mod_subdir))
                 remove_dir(os.path.dirname(fake_mod_path))
             except OSError as err:
                 raise EasyBuildError("Failed to clean up fake module dir %s: %s", fake_mod_path, err)
@@ -1966,7 +1969,7 @@ class EasyBlock:
 
         # restore original environment
         self.log.info("Restoring environment after unloading fake module")
-        restore_env(env, log_changes=False)
+        restore_env(orig_env, log_changes=False)
 
     def load_dependency_modules(self):
         """Load dependency modules."""
@@ -2057,7 +2060,7 @@ class EasyBlock:
         Skip already installed extensions (checking sequentially),
         by removing them from list of Extension instances to install (self.ext_instances).
         """
-        print_msg("skipping installed extensions (sequentially)", log=self.log)
+        print_msg("skipping installed extensions (sequentially)", silent=self.silent, log=self.log)
 
         exts_cnt = len(self.ext_instances)
 
@@ -2087,7 +2090,7 @@ class EasyBlock:
         Skip already installed extensions (checking in parallel),
         by removing them from list of Extension instances to install (self.ext_instances).
         """
-        print_msg("skipping installed extensions (in parallel)", log=self.log)
+        print_msg("skipping installed extensions (in parallel)", silent=self.silent, log=self.log)
 
         cmds = [construct_exts_filter_cmds(exts_filter, ext) for ext in self.ext_instances]
         # Consider extensions that don't need checking as checked
@@ -2126,7 +2129,7 @@ class EasyBlock:
         retained_ext_instances = []
         for idx, ext in enumerate(self.ext_instances):
             if installed_exts[idx]:
-                print_msg(f"skipping extension {ext.name}", log=self.log)
+                print_msg(f"skipping extension {ext.name}", silent=self.silent, log=self.log)
             else:
                 retained_ext_instances.append(ext)
                 self.log.info("Not skipping %s", ext.name)
@@ -2169,6 +2172,82 @@ class EasyBlock:
         else:
             self.install_extensions_sequential(install=install)
 
+    def _install_extensions_det_init_build_env(self, fake_mod_file_path):
+        """
+        Determine initial build environment for installing extensions
+        """
+
+        build_env = None
+        fake_mod_file_txt = None
+
+        # determine initial build environment to use for installing extensions
+        self.log.debug("Determining build environment for extensions...")
+        if not self.dry_run:
+            # load fake module file to get fully correct environment for installing extensions
+            with self.fake_module_environment(with_build_deps=True):
+                self.log.debug("List of loaded modules: %s", self.modules_tool.list())
+
+                # reset toolchain instance before calling prepare again to get pristine build environment;
+                # this is required because of the complex mechanism used to determine values for environment
+                # variables, without this value for environment variable like $MPICXX would be duplicated,
+                # see https://github.com/easybuilders/easybuild-framework/issues/4948
+                self.toolchain.reset()
+
+                # determine build environment by preparing toolchain,
+                # which will for example also inject RPATH wrappers;
+                # don't reload modules for toolchain, there is no need
+                # since they will be loaded already by the fake module
+                self.toolchain.prepare(onlymod=self.cfg['onlytcmod'], deps=self.cfg.dependencies(),
+                                       silent=True, loadmod=False,
+                                       rpath_filter_dirs=self.rpath_filter_dirs,
+                                       rpath_include_dirs=self.rpath_include_dirs,
+                                       rpath_wrappers_dir=self.rpath_wrappers_dir)
+
+                # note: we must grab contents of fake module file within context of fake_module_environment
+                fake_mod_file_txt = read_file(fake_mod_file_path)
+
+                build_env = copy_current_env()
+
+        return build_env, fake_mod_file_txt
+
+    def _install_extensions_check_fake_mod_file(self, fake_mod_file_path, fake_mod_file_txt):
+        """
+        Check whether contents of fake module file have changed
+        after installing extension(s)
+        """
+        res = None
+
+        self.log.debug(f"Checking whether contents of fake module file {fake_mod_file_path} have changed...")
+
+        # re-generate fake module file, and check if it is different from before;
+        # if so, we need to re-determine the build environment to use
+        # by re-loading the fake module and calling toolchain.prepare
+        self.make_module_step(fake=True)
+        new_fake_mod_file_txt = read_file(fake_mod_file_path)
+        if new_fake_mod_file_txt != fake_mod_file_txt:
+            diff_lines = difflib.ndiff(fake_mod_file_txt.splitlines(), new_fake_mod_file_txt.splitlines())
+            diff_txt = '\n'.join(diff_lines)
+            self.log.info("Contents of fake module file have changed, diff: " + diff_txt)
+
+            fake_mod_file_txt = new_fake_mod_file_txt
+
+            self.log.info("Re-determining build environment for extensions...")
+            with self.fake_module_environment(with_build_deps=True):
+                self.toolchain.reset()
+                self.toolchain.prepare(onlymod=self.cfg['onlytcmod'], deps=self.cfg.dependencies(),
+                                       silent=True, loadmod=False,
+                                       rpath_filter_dirs=self.rpath_filter_dirs,
+                                       rpath_include_dirs=self.rpath_include_dirs,
+                                       rpath_wrappers_dir=self.rpath_wrappers_dir)
+
+                build_env = copy_current_env()
+
+                res = (build_env, fake_mod_file_txt)
+        else:
+            self.log.debug("Contents of fake module file have not changed")
+
+        return res
+
     def install_extensions_sequential(self, install=True):
         """
         Install extensions sequentially.
@@ -2178,6 +2257,11 @@ class EasyBlock:
         self.log.info("Installing extensions sequentially...")
 
         exts_cnt = len(self.ext_instances)
+
+        # path to fake module file, so we can check if contents change after installing extensions
+        fake_mod_file_path = self.module_generator.get_module_filepath(fake=True)
+
+        build_env, fake_mod_file_txt = self._install_extensions_det_init_build_env(fake_mod_file_path)
 
         for idx, ext in enumerate(self.ext_instances):
             self.log.info("Starting extension %s", ext.name)
@@ -2199,37 +2283,37 @@ class EasyBlock:
                 msg = "\n* installing extension %s %s using '%s' easyblock\n" % tup
                 self.dry_run_msg(msg)
 
-            if self.dry_run:
-                self.dry_run_msg("defining build environment based on toolchain (options) and dependencies...")
-
             # actual installation of the extension
-            if install and not self.dry_run:
-                with self.fake_module_environment(with_build_deps=True):
-                    self.log.debug("List of loaded modules: %s", self.modules_tool.list())
-                    # don't reload modules for toolchain, there is no need
-                    # since they will be loaded already by the fake module
-                    ext.toolchain.prepare(onlymod=self.cfg['onlytcmod'], deps=self.cfg.dependencies(),
-                                          silent=True, loadmod=False,
-                                          rpath_filter_dirs=self.rpath_filter_dirs,
-                                          rpath_include_dirs=self.rpath_include_dirs,
-                                          rpath_wrappers_dir=self.rpath_wrappers_dir)
-                    try:
-                        ext.install_extension_substep("pre_install_extension")
-                        with self.module_generator.start_module_creation():
-                            txt = ext.install_extension_substep("install_extension")
-                        if txt:
-                            self.module_extra_extensions += txt
-                        ext.install_extension_substep("post_install_extension")
-                    finally:
-                        ext_duration = datetime.now() - start_time
-                        if ext_duration.total_seconds() >= 1:
-                            print_msg("\t... (took %s)", time2str(ext_duration), log=self.log, silent=self.silent)
-                        elif self.logdebug or build_option('trace'):
-                            print_msg("\t... (took < 1 sec)", log=self.log, silent=self.silent)
+            elif install:
+
+                # restore build environment for this extension
+                restore_env(build_env, log_changes=False)
+
+                try:
+                    ext.install_extension_substep("pre_install_extension")
+                    with self.module_generator.start_module_creation():
+                        txt = ext.install_extension_substep("install_extension")
+                    if txt:
+                        self.module_extra_extensions += txt
+                    ext.install_extension_substep("post_install_extension")
+                finally:
+                    ext_duration = datetime.now() - start_time
+                    if ext_duration.total_seconds() >= 1:
+                        print_msg("\t... (took %s)", time2str(ext_duration), log=self.log, silent=self.silent)
+                    elif self.logdebug or build_option('trace'):
+                        print_msg("\t... (took < 1 sec)", log=self.log, silent=self.silent)
+
+                res = self._install_extensions_check_fake_mod_file(fake_mod_file_path, fake_mod_file_txt)
+                if res:
+                    build_env, fake_mod_file_txt = res
 
             self.update_exts_progress_bar(progress_info, progress_size=1)
 
             run_hook(SINGLE_EXTENSION, self.hooks, post_step_hook=True, args=[ext])
+
+        # restore "parent" build environment (in which fake module is not loaded)
+        if self.cached_build_env:
+            restore_env(self.cached_build_env)
 
     def install_extensions_parallel(self, install=True):
         """
@@ -2240,6 +2324,12 @@ class EasyBlock:
         self.log.info("Installing extensions in parallel...")
 
         thread_pool = ThreadPoolExecutor(max_workers=self.cfg.parallel)
+
+        # path to fake module file, so we can check if contents change after installing extensions
+        fake_mod_file_path = self.module_generator.get_module_filepath(fake=True)
+
+        self.log.debug("Determining build environment for extensions...")
+        build_env, fake_mod_file_txt = self._install_extensions_det_init_build_env(fake_mod_file_path)
 
         running_exts = []
         installed_ext_names = []
@@ -2270,30 +2360,13 @@ class EasyBlock:
 
             self.update_exts_progress_bar(progress_info, progress_size=progress_size)
 
+        # amount of seconds to wait until running next iteration of the loop below
+        wait_time = 1
+
         while exts_queue or running_exts:
 
             # always go back to original work dir to avoid running stuff from a dir that no longer exists
             change_dir(self.orig_workdir)
-
-            # check for extension installations that have completed
-            if running_exts:
-                self.log.info(f"Checking for completed extension installations ({len(running_exts)} running)...")
-                for ext in running_exts[:]:
-                    if self.dry_run or ext.async_cmd_task.done():
-                        res = ext.async_cmd_task.result()
-                        if res.exit_code == EasyBuildExit.SUCCESS:
-                            self.log.info(f"Installation of extension {ext.name} completed!")
-                            # run post-install method for extension from same working dir as installation of extension
-                            cwd = change_dir(res.work_dir)
-                            ext.install_extension_substep("post_install_extension")
-                            change_dir(cwd)
-                            running_exts.remove(ext)
-                            installed_ext_names.append(ext.name)
-                            update_exts_progress_bar_helper(running_exts, 1)
-                        else:
-                            raise_run_shell_cmd_error(res)
-                    else:
-                        self.log.debug(f"Installation of extension {ext.name} is still running...")
 
             # try to start as many extension installations as we can, taking into account number of available cores,
             # but only consider first 100 extensions still in the queue
@@ -2368,19 +2441,55 @@ class EasyBlock:
                     print_msg("starting installation of extension %s %s..." % tup, silent=self.silent, log=self.log)
 
                     if install and not self.dry_run:
-                        with self.fake_module_environment(with_build_deps=True):
-                            # don't reload modules for toolchain, there is no
-                            # need since they will be loaded by the fake module
-                            ext.toolchain.prepare(onlymod=self.cfg['onlytcmod'], deps=self.cfg.dependencies(),
-                                                  silent=True, loadmod=False,
-                                                  rpath_filter_dirs=self.rpath_filter_dirs,
-                                                  rpath_include_dirs=self.rpath_include_dirs,
-                                                  rpath_wrappers_dir=self.rpath_wrappers_dir)
-                            ext.install_extension_substep("pre_install_extension")
-                            ext.async_cmd_task = ext.install_extension_substep("install_extension_async", thread_pool)
-                            running_exts.append(ext)
-                            self.log.info(f"Started installation of extension {ext.name} in the background...")
+                        # restore build environment for this extension
+                        restore_env(build_env, log_changes=False)
+
+                        ext.install_extension_substep("pre_install_extension")
+
+                        # note: current build environment is copied when install_extension_async is called
+                        ext.async_cmd_task = ext.install_extension_substep("install_extension_async", thread_pool)
+                        running_exts.append(ext)
+
+                        self.log.info(f"Started installation of extension {ext.name} in the background...")
                         update_exts_progress_bar_helper(running_exts, 0)
+
+            # check for extension installations that have completed
+            installs_completed = False
+            if running_exts:
+                self.log.info(f"Checking for completed extension installations ({len(running_exts)} running)...")
+                for ext in running_exts[:]:
+                    if self.dry_run or ext.async_cmd_task.done():
+                        installs_completed = True
+                        res = ext.async_cmd_task.result()
+                        if res.exit_code == EasyBuildExit.SUCCESS:
+                            print_msg(f"installation of extension {ext.name} {ext.version or ''} completed!",
+                                      silent=self.silent, log=self.log)
+                            # run post-install method for extension from same working dir as installation of extension
+                            cwd = change_dir(res.work_dir)
+                            ext.install_extension_substep("post_install_extension")
+                            change_dir(cwd)
+                            running_exts.remove(ext)
+                            installed_ext_names.append(ext.name)
+                            update_exts_progress_bar_helper(running_exts, 1)
+                        else:
+                            raise_run_shell_cmd_error(res)
+                    else:
+                        self.log.debug(f"Installation of extension {ext.name} is still running...")
+
+            if installs_completed:
+                # reset wait time between iterations
+                wait_time = 1
+                # check whether installed extensions result in changes to the contents of the fake module file
+                res = self._install_extensions_check_fake_mod_file(fake_mod_file_path, fake_mod_file_txt)
+                if res:
+                    build_env, fake_mod_file_txt = res
+            else:
+                # if no installations were completed, we should wait a bit before checking whether the installations
+                # of additional extensions can be started...
+                time.sleep(wait_time)
+                # wait a bit longer, with a max. wait time of 10 seconds
+                if wait_time < 10:
+                    wait_time += 1
 
             # print progress info after every iteration (unless that info is already shown via progress bar)
             if not show_progress_bars():
@@ -2390,9 +2499,14 @@ class EasyBlock:
                     running_ext_names = ', '.join(x.name for x in running_exts)
                 else:
                     running_ext_names = ', '.join(x.name for x in running_exts[:3]) + ", ..."
-                print_msg(msg % (installed_cnt, exts_cnt, queued_cnt, running_cnt, running_ext_names), log=self.log)
+                print_msg(msg % (installed_cnt, exts_cnt, queued_cnt, running_cnt, running_ext_names),
+                          silent=self.silent, log=self.log)
 
         thread_pool.shutdown()
+
+        # restore "parent" build environment (in which fake module is not loaded)
+        if self.cached_build_env:
+            restore_env(self.cached_build_env)
 
     #
     # MISCELLANEOUS UTILITY FUNCTIONS
@@ -3133,6 +3247,9 @@ class EasyBlock:
                     "Updated empty 'cuda_compute_capabilities' option with default CUDA compute capability "
                     f"defined in nvidia-compilers: {self.cfg['cuda_compute_capabilities']}"
                 )
+
+        # cache build environment, so we can restore it later (when installing extensions)
+        self.cached_build_env = copy_current_env()
 
         # guess directory to start configure/build/install process in, and move there
         if start_dir:

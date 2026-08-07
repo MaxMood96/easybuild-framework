@@ -584,6 +584,12 @@ class EasyConfigTest(EnhancedTestCase):
         os.environ['EASYBUILD_SOURCEPATH'] = self.test_prefix
         init_config(build_options={'silent': True})
 
+        # extensions step requires that module for dependencies are available, so create dummy ones
+        pymod_txt = "#%Module"
+        mods_path = os.path.join(self.test_prefix, 'modules')
+        write_file(os.path.join(mods_path, 'Python', '3.6.6'), pymod_txt)
+        self.modtool.use(mods_path)
+
         self.contents = '\n'.join([
             'easyblock = "ConfigureMake"',
             'name = "pi"',
@@ -4539,6 +4545,12 @@ class EasyConfigTest(EnhancedTestCase):
         self.assertEqual(ec.template_values['pyver'], '3.6.6')
         self.assertIn('pyshortver', ec.template_values)
         self.assertEqual(ec.template_values['pyshortver'], '3.6')
+
+        # extensions step requires that module for dependencies are available, so create dummy ones
+        pymod_txt = "#%Module"
+        mods_path = os.path.join(self.test_prefix, 'modules')
+        write_file(os.path.join(mods_path, 'Python', '3.6.6'), pymod_txt)
+        self.modtool.use(mods_path)
 
         # check that extensions inherit these template values too
         # cfr. https://github.com/easybuilders/easybuild-framework/issues/3317
