@@ -229,7 +229,7 @@ def sanitize_env():
             entries = val.split(os.pathsep)
             if '' in entries:
                 _log.info("Found %d empty entries in $%s, filtering them out...", entries.count(''), key)
-                newval = os.pathsep.join(x for x in entries if x)
+                newval = join_path_var(entries)
                 if newval:
                     setvar(key, newval)
                 else:

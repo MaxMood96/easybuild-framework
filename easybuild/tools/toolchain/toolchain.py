@@ -61,7 +61,7 @@ import tempfile
 from easybuild.base import fancylogger
 from easybuild.tools.build_log import EasyBuildError, dry_run_msg, print_warning
 from easybuild.tools.config import build_option, install_path
-from easybuild.tools.environment import setvar
+from easybuild.tools.environment import setvar, join_path_var
 from easybuild.tools.filetools import adjust_permissions, copy_file, find_eb_script, mkdir, read_file, which, write_file
 from easybuild.tools.module_generator import dependencies_for
 from easybuild.tools.modules import get_software_root, get_software_root_env_var_name
@@ -431,7 +431,7 @@ class Toolchain:
             if verbose:
                 res.append("# type %s" % (type(self.variables[v])))
                 res.append("# %s" % (self.variables[v].show_el()))
-                res.append("# repr %s" % (self.variables[v].__repr__()))
+                res.append("# repr %s" % (repr(self.variables[v])))
 
         if offset is None:
             offset = ''
@@ -604,7 +604,7 @@ class Toolchain:
 
         return deps
 
-    def is_required(self, name):
+    def is_required(self, _name):
         """Determine whether this is a required toolchain element."""
         # default: assume every element is required
         return True
@@ -1174,8 +1174,9 @@ class Toolchain:
                     if not any(os.path.exists(x) and os.path.samefile(x, sysroot_pc_path) for x in pkg_config_path):
                         pkg_config_path.append(sysroot_pc_path)
 
+            pkg_config_path = join_path_var(pkg_config_path)
             if pkg_config_path:
-                setvar('PKG_CONFIG_PATH', os.pathsep.join(pkg_config_path))
+                setvar('PKG_CONFIG_PATH', pkg_config_path)
 
     def _add_dependency_variables(self, names=None, cpp=None, ld=None):
         """
