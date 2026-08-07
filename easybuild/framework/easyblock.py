@@ -2486,6 +2486,10 @@ class EasyBlock:
 
         thread_pool.shutdown()
 
+        # restore "parent" build environment (in which fake module is not loaded)
+        if self.cached_build_env:
+            restore_env(self.cached_build_env)
+
     #
     # MISCELLANEOUS UTILITY FUNCTIONS
     #
