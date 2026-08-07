@@ -1196,6 +1196,11 @@ class ToyBuildTest(EnhancedTestCase):
         with self.mocked_stdout_stderr():
             self._test_toy_build(ec_file=test_ec, versionsuffix='-gompi-2018a-test', extra_args=['--debug'])
 
+        # verify that bug that leads to duplicating values of environment variable is not re-introduced,
+        # see https://github.com/easybuilders/easybuild-framework/issues/4948
+        logfile = read_file(self.logfile)
+        self.assertNotRegex(logfile, r'mpicxx mpicxx')
+
         toy_module = os.path.join(self.test_installpath, 'modules', 'all', 'toy', '0.0-gompi-2018a-test')
         if get_module_syntax() == 'Lua':
             toy_module += '.lua'
