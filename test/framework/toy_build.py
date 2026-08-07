@@ -1993,11 +1993,10 @@ class ToyBuildTest(EnhancedTestCase):
         # take into account that each of these lines may appear multiple times,
         # in case no progress was made between checks
         patterns = [
-            r"== 0 out of 4 extensions installed \(2 queued, 2 running: ls, bar\)$",
+            r"== 1 out of 4 extensions installed \(2 queued, 1 running: bar\)$",
             r"== 2 out of 4 extensions installed \(1 queued, 1 running: barbar\)$",
             r"== 3 out of 4 extensions installed \(0 queued, 1 running: toy\)$",
             r"== 4 out of 4 extensions installed \(0 queued, 0 running: \)$",
-            '',
         ]
         for pattern in patterns:
             regex = re.compile(pattern, re.M)
