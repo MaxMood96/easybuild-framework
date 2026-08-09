@@ -2203,6 +2203,11 @@ class EasyBlock:
                                        rpath_include_dirs=self.rpath_include_dirs,
                                        rpath_wrappers_dir=self.rpath_wrappers_dir)
 
+                # copy Toolchain instance into Extension instances,
+                # to ensure they get the correct values for variables, etc.
+                for ext in self.ext_instances:
+                    ext.cfg._toolchain = copy.copy(self.toolchain)
+
                 # note: we must grab contents of fake module file within context of fake_module_environment
                 fake_mod_file_txt = read_file(fake_mod_file_path)
 
@@ -2239,6 +2244,11 @@ class EasyBlock:
                                        rpath_filter_dirs=self.rpath_filter_dirs,
                                        rpath_include_dirs=self.rpath_include_dirs,
                                        rpath_wrappers_dir=self.rpath_wrappers_dir)
+
+                # copy Toolchain instance into Extension instances,
+                # to ensure they get the correct values for variables, etc.
+                for ext in self.ext_instances:
+                    ext.cfg._toolchain = copy.copy(self.toolchain)
 
                 build_env = copy_current_env()
 
