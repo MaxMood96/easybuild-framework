@@ -76,6 +76,13 @@ def get_changes():
     return _changes
 
 
+def copy_current_env():
+    """
+    Copy current environment, and return it.
+    """
+    return copy.deepcopy(os.environ)
+
+
 def setvar(key, value, verbose=True, log_changes=True):
     """
     put key in the environment with value
@@ -180,6 +187,7 @@ def restore_env(env, log_changes=True):
     Restore active environment based on specified dictionary.
     :param log_changes: show the change in the log
     """
+    _log.debug(f"Restoring environment: {env}")
     modify_env(os.environ, env, verbose=False, log_changes=log_changes)
 
 

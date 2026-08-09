@@ -34,6 +34,7 @@ Unit tests for filetools.py
 import datetime
 import filecmp
 import glob
+import importlib
 import logging
 import os
 import re
@@ -77,6 +78,8 @@ class FileToolsTest(EnhancedTestCase):
             self.orig_filetools_requests_get = ft.requests.get
         self.orig_filetools_HAVE_REQUESTS = ft.HAVE_REQUESTS
 
+        self.orig_filetools_fallback_source_urls = ft.FALLBACK_SOURCE_URLS[:]
+
     def tearDown(self):
         """Cleanup."""
         super().tearDown()
@@ -85,6 +88,8 @@ class FileToolsTest(EnhancedTestCase):
         ft.HAVE_REQUESTS = self.orig_filetools_HAVE_REQUESTS
         if ft.HAVE_REQUESTS:
             ft.requests.get = self.orig_filetools_requests_get
+
+        ft.FALLBACK_SOURCE_URLS = self.orig_filetools_fallback_source_urls
 
     def test_extract_cmd(self):
         """Test various extract commands."""
@@ -118,6 +123,14 @@ class FileToolsTest(EnhancedTestCase):
         for (fn, expected_cmd) in tests:
             cmd = ft.extract_cmd(fn)
             self.assertEqual(expected_cmd, cmd)
+
+        # Fake bsdtar command, if exists, is preferred
+        fake_bsdtar = os.path.join(self.test_prefix, 'bin', 'bsdtar')
+        ft.write_file(fake_bsdtar, '#!/bin/bash\necho "fake bsdtar"')
+        ft.adjust_permissions(fake_bsdtar, stat.S_IXUSR)
+        os.environ['PATH'] = '%s:%s' % (os.path.dirname(fake_bsdtar), os.getenv('PATH', ''))
+        new_ft = importlib.reload(ft)  # Force reload to get new EXTRACT_CMDS
+        self.assertEqual("bsdtar xf test.iso", new_ft.extract_cmd('test.iso'))
 
         self.assertEqual("unzip -qq -o test.zip", ft.extract_cmd('test.zip', True))
 
@@ -780,6 +793,45 @@ class FileToolsTest(EnhancedTestCase):
             self.assertIn("WARNING: Not checking server certificates while downloading README.rst", stderr)
             self.assertExists(res)
             self.assertIn("https://easybuild.io", ft.read_file(res))
+
+    def test_download_file_fallback_source_urls(self):
+        """
+        Test use of fallback source URLs in download_file function
+        """
+
+        fn = 'toy-0.0.eb'
+        test_dir = os.path.abspath(os.path.dirname(__file__))
+        toy_dir = os.path.join(test_dir, 'easyconfigs', 'test_ecs', 't', 'toy')
+        correct_url = f'file://{toy_dir}/'
+
+        wrong_url = f'file://{self.test_prefix}/easyconfigs/'
+
+        target = os.path.join(self.test_prefix, fn)
+
+        # expected failure when wrong URL is used
+        res = ft.download_file(fn, wrong_url + fn, target)
+        self.assertEqual(res, None)
+        self.assertFalse(os.path.exists(target))
+
+        # expected success when correct URL is used
+        res = ft.download_file(fn, correct_url + fn, target)
+        self.assertEqual(res, target)
+        self.assertTrue(os.path.exists(target))
+
+        ft.remove_file(target)
+
+        # inject extra fallback URL, see if its actually being used
+        ft.FALLBACK_SOURCE_URLS.append((wrong_url, correct_url))
+        res = ft.download_file(fn, wrong_url + fn, target)
+        self.assertEqual(res, target)
+        self.assertTrue(os.path.exists(target))
+
+        ft.remove_file(target)
+
+        # download with correct URL should also still work
+        res = ft.download_file(fn, correct_url + fn, target)
+        self.assertEqual(res, target)
+        self.assertTrue(os.path.exists(target))
 
     def test_mkdir(self):
         """Test mkdir function."""

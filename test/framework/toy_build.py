@@ -1196,6 +1196,11 @@ class ToyBuildTest(EnhancedTestCase):
         with self.mocked_stdout_stderr():
             self._test_toy_build(ec_file=test_ec, versionsuffix='-gompi-2018a-test', extra_args=['--debug'])
 
+        # verify that bug that leads to duplicating values of environment variable is not re-introduced,
+        # see https://github.com/easybuilders/easybuild-framework/issues/4948
+        logfile = read_file(self.logfile)
+        self.assertNotRegex(logfile, r'mpicxx mpicxx')
+
         toy_module = os.path.join(self.test_installpath, 'modules', 'all', 'toy', '0.0-gompi-2018a-test')
         if get_module_syntax() == 'Lua':
             toy_module += '.lua'
@@ -1741,7 +1746,7 @@ class ToyBuildTest(EnhancedTestCase):
         write_file(toy_ec, ectxt + extraectxt)
 
         if isinstance(self.modtool, Lmod):
-            err_msg = r"Module command '.*load nosuchbuilddep/0.0.0' failed"
+            err_msg = r"Module command '.*load nosuchbuilddep/0.0.0 intel/2018a GCC/6.4.0-2.28' failed"
         else:
             err_msg = r"Unable to locate a modulefile for 'nosuchbuilddep/0.0.0'"
 
@@ -1754,7 +1759,7 @@ class ToyBuildTest(EnhancedTestCase):
         write_file(toy_ec, ectxt + extraectxt)
 
         if isinstance(self.modtool, Lmod):
-            err_msg = r"Module command '.*load nosuchmodule/1.2.3' failed"
+            err_msg = r"Module command '.*load intel/2018a GCC/6.4.0-2.28 nosuchmodule/1.2.3' failed"
         else:
             err_msg = r"Unable to locate a modulefile for 'nosuchmodule/1.2.3'"
 
@@ -1961,9 +1966,9 @@ class ToyBuildTest(EnhancedTestCase):
             self.eb_main([test_ec, '--module-only', '--force'], do_build=True, raise_error=True)
         self.assertExists(toy_mod)
 
-    def test_toy_exts_parallel(self):
+    def _test_toy_exts_common(self, args=None):
         """
-        Test parallel installation of extensions (--parallel-extensions-install)
+        Common code for test_toy_exts_sequential and test_toy_exts_parallel tests
         """
         toy_mod = os.path.join(self.test_installpath, 'modules', 'all', 'toy', '0.0')
         if get_module_syntax() == 'Lua':
@@ -1972,6 +1977,12 @@ class ToyBuildTest(EnhancedTestCase):
         test_ec = os.path.join(self.test_prefix, 'test.eb')
         test_ec_txt = TOY_EC_TXT
         test_ec_txt += '\n' + '\n'.join([
+            "toolchain = {'name': 'GCC', 'version': '12.3.0'}",
+            '',
+            "builddependencies = [('binutils', '2.40')]",
+            ''
+            "dependencies = [('OpenMPI', '4.1.5')]",
+            '',
             "exts_defaultclass = 'DummyExtension'",
             "exts_list = [",
             "    ('ls'),",
@@ -1986,41 +1997,142 @@ class ToyBuildTest(EnhancedTestCase):
         ])
         write_file(test_ec, test_ec_txt)
 
-        args = ['--parallel-extensions-install', '--experimental', '--force', '--parallel=3']
-        stdout, stderr = self.run_test_toy_build_with_output(ec_file=test_ec, extra_args=args, raise_error=True)
+        extra_args = ['--force', '--parallel=3']
+        if args:
+            extra_args.extend(args)
+
+        write_file(self.logfile, '')
+
+        stdout, stderr = self.run_test_toy_build_with_output(ec_file=test_ec, versionsuffix='-GCC-12.3.0',
+                                                             extra_args=extra_args, raise_error=True)
         self.assertEqual(stderr, '')
+
+        logtxt = read_file(self.logfile)
+
+        return logtxt
+
+    def test_toy_exts_sequential(self):
+        """
+        Test sequential installation of extensions (--disable-parallel-extensions-install)
+        """
+        # currently --parallel-extensions-install is disabled by default,
+        # but also test with it disable explicitly
+        for args in ([], ['--disable-parallel-extensions-install']):
+
+            logtxt = self._test_toy_exts_common(args=args)
+
+            self.assertRegex(logtxt, "INFO Installing extensions sequentially")
+
+            patterns = [f"INFO installing extension {x}" for x in ('ls', 'bar', 'barbar', 'toy')]
+            self.assert_multi_regex(patterns, logtxt)
+
+            # check how many time fake module is loaded;
+            # should be 6 times:
+            # - three times in extensions step (by EasyBlock._install_extensions_det_init_build_env)
+            #   - once at start (before loop)
+            #   - twice because changes to fake module were detected (after installing of bar & barbar extensions)
+            # - twice in sanity check step:
+            #   - once for toy extension, via sanity_check_module_environment in ExtensionEasyBlock.sanity_check_step
+            #   - once via sanity_check_load_module in EasyBlock._sanity_check_step
+            # - once in module step (when creating devel module)
+            regex_load_fake_mod = re.compile("INFO Loading fake module", re.M)
+            self.assertEqual(len(regex_load_fake_mod.findall(logtxt)), 6)
+
+            # count number of 'module load' commands that were run
+            regex_module_load = re.compile("INFO Running command.*\n.* python load (.*)", re.M)
+            res = regex_module_load.findall(logtxt)
+            # there should be 5 'module load' commands in total
+            expected = [
+                # one load command for toolchain + all dependencies
+                "GCC/12.3.0 binutils/2.40-GCCcore-12.3.0 OpenMPI/4.1.5-GCC-12.3.0",
+                # three times a load command for fake module + build dependencies
+                # (via EasyBlock.install_extensions_parallel)
+                "binutils/2.40-GCCcore-12.3.0 toy/0.0-GCC-12.3.0",
+                "binutils/2.40-GCCcore-12.3.0 toy/0.0-GCC-12.3.0",
+                "binutils/2.40-GCCcore-12.3.0 toy/0.0-GCC-12.3.0",
+                # two load commands in sanity check step (once for 'toy' extension, once for top-level)
+                "toy/0.0-GCC-12.3.0",
+                "toy/0.0-GCC-12.3.0",
+                # one load command for module step (when creating devel module)
+                "toy/0.0-GCC-12.3.0",
+            ]
+            self.assertEqual(res, expected)
+
+            # also test skipping of extensions in parallel
+            args.append('--skip')
+
+            logtxt = self._test_toy_exts_common(args=args)
+
+            # order in which these patterns occur is not fixed, so check them one by one
+            patterns = [
+                r"INFO skipping installed extensions \(sequentially\)$",
+                r"INFO skipping extension ls$",
+                r"INFO skipping extension bar$",
+                r"INFO skipping extension barbar$",
+                r"INFO skipping extension toy$",
+            ]
+            self.assert_multi_regex(patterns, logtxt)
+
+    def test_toy_exts_parallel(self):
+        """
+        Test parallel installation of extensions (--parallel-extensions-install)
+        """
+        args = ['--parallel-extensions-install']
+
+        logtxt = self._test_toy_exts_common(args=args)
 
         # take into account that each of these lines may appear multiple times,
         # in case no progress was made between checks
         patterns = [
-            r"== 0 out of 4 extensions installed \(2 queued, 2 running: ls, bar\)$",
-            r"== 2 out of 4 extensions installed \(1 queued, 1 running: barbar\)$",
-            r"== 3 out of 4 extensions installed \(0 queued, 1 running: toy\)$",
-            r"== 4 out of 4 extensions installed \(0 queued, 0 running: \)$",
-            '',
+            "INFO Installing extensions in parallel",
+            r"INFO 1 out of 4 extensions installed \(2 queued, 1 running: bar\)$",
+            r"INFO 2 out of 4 extensions installed \(1 queued, 1 running: barbar\)$",
+            r"INFO 3 out of 4 extensions installed \(0 queued, 1 running: toy\)$",
+            r"INFO 4 out of 4 extensions installed \(0 queued, 0 running: \)$",
         ]
-        for pattern in patterns:
-            regex = re.compile(pattern, re.M)
-            error_msg = "Expected pattern '%s' should be found in %s'" % (regex.pattern, stdout)
-            self.assertTrue(regex.search(stdout), error_msg)
+        self.assert_multi_regex(patterns, logtxt)
+
+        # check how many time fake module is loaded;
+        # should be 4 times:
+        # - once at start of extensions step (by EasyBlock._install_extensions_det_init_build_env)
+        # - twice in sanity check step:
+        #   - once for toy extension, via sanity_check_module_environment in ExtensionEasyBlock.sanity_check_step
+        #   - once via sanity_check_load_module in EasyBlock._sanity_check_step
+        # - once in module step (when creating devel module)
+        regex_load_fake_mod = re.compile("INFO Loading fake module", re.M)
+        self.assertEqual(len(regex_load_fake_mod.findall(logtxt)), 4)
+
+        # count number of 'module load' commands that were run
+        regex_module_load = re.compile("INFO Running command.*\n.* python load (.*)", re.M)
+        res = regex_module_load.findall(logtxt)
+        # there should be 5 'module load' commands in total
+        expected = [
+            # one load command for toolchain + all dependencies
+            "GCC/12.3.0 binutils/2.40-GCCcore-12.3.0 OpenMPI/4.1.5-GCC-12.3.0",
+            # one load command for fake module + build dependencies (via EasyBlock.install_extensions_parallel)
+            "binutils/2.40-GCCcore-12.3.0 toy/0.0-GCC-12.3.0",
+            # two load commands in sanity check step (once for 'toy' extension, once for top-level)
+            "toy/0.0-GCC-12.3.0",
+            "toy/0.0-GCC-12.3.0",
+            # one load command for module step (when creating devel module)
+            "toy/0.0-GCC-12.3.0",
+        ]
+        self.assertEqual(res, expected)
 
         # also test skipping of extensions in parallel
         args.append('--skip')
-        stdout, stderr = self.run_test_toy_build_with_output(ec_file=test_ec, extra_args=args, raise_error=True)
-        self.assertEqual(stderr, '')
+
+        logtxt = self._test_toy_exts_common(args=args)
 
         # order in which these patterns occur is not fixed, so check them one by one
         patterns = [
-            r"^== skipping installed extensions \(in parallel\)$",
-            r"^== skipping extension ls$",
-            r"^== skipping extension bar$",
-            r"^== skipping extension barbar$",
-            r"^== skipping extension toy$",
+            r"INFO skipping installed extensions \(in parallel\)$",
+            r"INFO skipping extension ls$",
+            r"INFO skipping extension bar$",
+            r"INFO skipping extension barbar$",
+            r"INFO skipping extension toy$",
         ]
-        for pattern in patterns:
-            regex = re.compile(pattern, re.M)
-            error_msg = "Expected pattern '%s' should be found in %s'" % (regex.pattern, stdout)
-            self.assertTrue(regex.search(stdout), error_msg)
+        self.assert_multi_regex(patterns, logtxt)
 
         # check behaviour when using Toy_Extension easyblock that doesn't implement required_deps method;
         # framework should fall back to installing extensions sequentially
@@ -2032,22 +2144,19 @@ class ToyBuildTest(EnhancedTestCase):
         write_file(toy_ext_eb, toy_ext_eb_txt)
 
         args[-1] = '--include-easyblocks=%s' % toy_ext_eb
-        stdout, stderr = self.run_test_toy_build_with_output(ec_file=test_ec, extra_args=args, raise_error=True)
-        self.assertEqual(stderr, '')
+
+        logtxt = self._test_toy_exts_common(args=args)
+
         # take into account that each of these lines may appear multiple times,
         # in case no progress was made between checks
         patterns = [
-            r"^== 0 out of 4 extensions installed \(3 queued, 1 running: ls\)$",
-            r"^== 1 out of 4 extensions installed \(2 queued, 1 running: bar\)$",
-            r"^== 2 out of 4 extensions installed \(1 queued, 1 running: barbar\)$",
-            r"^== 3 out of 4 extensions installed \(0 queued, 1 running: toy\)$",
-            r"^== 4 out of 4 extensions installed \(0 queued, 0 running: \)$",
+            r"INFO 1 out of 4 extensions installed \(2 queued, 1 running: bar\)$",
+            r"INFO 2 out of 4 extensions installed \(1 queued, 1 running: barbar\)$",
+            r"INFO 3 out of 4 extensions installed \(0 queued, 1 running: toy\)$",
+            r"INFO 4 out of 4 extensions installed \(0 queued, 0 running: \)$",
             '',
         ]
-        for pattern in patterns:
-            regex = re.compile(pattern, re.M)
-            error_msg = "Expected pattern '%s' should be found in %s'" % (regex.pattern, stdout)
-            self.assertTrue(regex.search(stdout), error_msg)
+        self.assert_multi_regex(patterns, logtxt)
 
     def test_backup_modules(self):
         """Test use of backing up of modules with --module-only."""
@@ -2494,6 +2603,37 @@ class ToyBuildTest(EnhancedTestCase):
         regex = re.compile('^.*/eb-[^/]+/eb-sanity-check-[^/]+\n[ ]*0$')
         self.assertTrue(regex.match(out_txt), f"Pattern '{regex.pattern}' should match in: {out_txt}")
 
+    def test_toy_extension_sanity_check(self):
+        """Check sanity check for extensions:
+        Custom_commands from easyblocks are run.
+        Paths are checked only once: The default for sanity_check_paths in extensions is empty."""
+        test_ec_txt = TOY_EC_TXT
+        test_ec_txt += '\n' + textwrap.dedent("""
+            exts_list = [
+                ('barbar', '0.0', {
+                    'exts_filter': ('ls -l lib/lib%(ext_name)s.a', ''),
+                    'toy_custom_sanity_check_cmds': ['echo "Run-Custom-Cmd for %(name)s" && PLACEHOLDER'],
+                    'use_custom_sanity_check_paths': False,
+                })
+            ]
+        """)
+        test_ec = os.path.join(self.test_prefix, 'test.eb')
+        write_file(test_ec, test_ec_txt.replace('PLACEHOLDER', 'false'))
+        error_pattern = 'sanity check command echo "Run-Custom-Cmd for barbar" && false failed with exit code 1'
+        with self.mocked_stdout_stderr(), self.log_to_testlogfile() as logfile:
+            self.assertErrorRegex(EasyBuildError, error_pattern, self._test_toy_build, ec_file=test_ec,
+                                  raise_error=True, verbose=False)
+            logtxt = read_file(logfile)
+        check_bin_msg = 'Sanity check: found (non-empty) directory bin'
+        self.assertEqual(logtxt.count(check_bin_msg), 1, "Check for 'bin' folder should only be done once")
+
+        write_file(test_ec, test_ec_txt.replace('PLACEHOLDER', 'true'))
+        with self.mocked_stdout_stderr(), self.log_to_testlogfile() as logfile:
+            self._test_toy_build(ec_file=test_ec, raise_error=True)
+            logtxt = read_file(logfile)
+        self.assertRegex(logtxt, 'sanity check command .*Run-Custom-Cmd for barbar.*ran successfully',)
+        self.assertEqual(logtxt.count(check_bin_msg), 1, "Check for 'bin' folder should only be done once")
+
     def test_sanity_check_paths_lib64(self):
         """Test whether fallback in sanity check for lib64/ equivalents of library files works."""
         # modify test easyconfig: move lib/libtoy.a to lib64/libtoy.a
@@ -2710,12 +2850,12 @@ class ToyBuildTest(EnhancedTestCase):
         stdout = self.get_stdout()
         self.mock_stdout(False)
 
-        pattern_lines = [
-            r"^== sanity checking\.\.\.",
-            r"  >> file 'bin/toy' found: OK",
-        ]
-        regex = re.compile(r'\n'.join(pattern_lines), re.M)
-        self.assertTrue(regex.search(stdout), "Pattern '%s' should be found in: %s" % (regex.pattern, stdout))
+        expected_out = textwrap.dedent("""
+            == sanity checking...
+              >> loading modules: toy/0.0...
+              >> file 'bin/toy' found: OK
+        """)
+        self.assertIn(expected_out, stdout)
 
         # no directories are checked in sanity check now, only files (since dirs is an empty list)
         regex = re.compile(r"directory .* found:", re.M)
@@ -3087,6 +3227,8 @@ class ToyBuildTest(EnhancedTestCase):
             "    'cp %s %s/pytoy-cuda.cpython-39-x86_64-linux-gnu.%s'," % (toy_bin, py_site_pkgs, shlib_ext),
             "    'cp %s %s/plugins/libpytoy_cuda.%s'," % (toy_bin, py_site_pkgs, shlib_ext),
             "]",
+            "exts_list = [('bar', '0.0')]",
+            "exts_defaultclass = 'DummyExtension'",
         ])
         write_file(toy_ec_cuda, toy_ec_txt)
 
@@ -3235,7 +3377,9 @@ class ToyBuildTest(EnhancedTestCase):
         with self.mocked_stdout_stderr():
             outtxt = self._test_toy_build(ec_file=toy_ec_cuda, extra_args=args, raise_error=True)
             stdout = self.get_stdout()
-        assert_cuda_report(missing_cc=0, additional_cc=0, missing_ptx=3, log=outtxt, stdout=stdout)
+        assert_cuda_report(missing_cc=0, additional_cc=0, missing_ptx=4, log=outtxt, stdout=stdout)
+        self.assertEqual(outtxt.count("CUDA sanity check summary report"), 1,
+                         "CUDA sanity check should be done exactly once")
 
         # Test case 1b: test with default options, --cuda-compute-capabilities=8.0 and a binary that contains
         # 7.0 and 9.0 device code and 8.0 PTX code.
@@ -3256,13 +3400,13 @@ class ToyBuildTest(EnhancedTestCase):
             stdout = self.get_stdout()
         self.assertIn(device_additional_70_90_code_msg, outtxt)
         self.assertIn(device_missing_80_code_msg, outtxt)
-        assert_cuda_report(missing_cc=3, additional_cc=3, missing_ptx=0, log=outtxt, stdout=stdout)
+        assert_cuda_report(missing_cc=4, additional_cc=4, missing_ptx=0, log=outtxt, stdout=stdout)
 
         # Test case 2: same as Test case 1, but add --cuda-sanity-check-error-on-failed-checks
         # This is expected to fail since there is missing device code for CC80
         args = ['--cuda-compute-capabilities=8.0', '--cuda-sanity-check-error-on-failed-checks']
         # We expect this to fail, so first check error, then run again to check output
-        error_pattern = r"Files missing CUDA device code: 3."
+        error_pattern = r"Files missing CUDA device code: 4."
         with self.mocked_stdout_stderr():
             self.assertErrorRegex(EasyBuildError, error_pattern, self._test_toy_build, ec_file=toy_ec_cuda,
                                   extra_args=args, raise_error=True)
@@ -3270,7 +3414,7 @@ class ToyBuildTest(EnhancedTestCase):
             stdout = self.get_stdout()
         self.assertIn(device_additional_70_90_code_msg, outtxt)
         self.assertIn(device_missing_80_code_msg, outtxt)
-        assert_cuda_report(missing_cc=3, additional_cc=3, missing_ptx=0, log=outtxt, stdout=stdout)
+        assert_cuda_report(missing_cc=4, additional_cc=4, missing_ptx=0, log=outtxt, stdout=stdout)
 
         # Test case 3: same as Test case 2, but add --cuda-sanity-check-accept-ptx-as-devcode
         # This is expected to succeed, since now the PTX code for CC80 will be accepted as
@@ -3284,14 +3428,14 @@ class ToyBuildTest(EnhancedTestCase):
             stdout = self.get_stdout()
         self.assertIn(device_additional_70_90_code_msg, outtxt)
         self.assertIn(device_missing_80_code_msg, outtxt)
-        assert_cuda_report(missing_cc=0, additional_cc=3, missing_ptx=0, log=outtxt, stdout=stdout,
-                           missing_cc_but_ptx=3)
+        assert_cuda_report(missing_cc=0, additional_cc=4, missing_ptx=0, log=outtxt, stdout=stdout,
+                           missing_cc_but_ptx=4)
 
         # Test case 4: same as Test case 2, but run with --cuda-compute-capabilities=9.0
         # This is expected to fail: device code is present, but PTX code for the highest CC (9.0) is missing
         args = ['--cuda-compute-capabilities=9.0', '--cuda-sanity-check-error-on-failed-checks']
         # We expect this to fail, so first check error, then run again to check output
-        error_pattern = r"Files missing CUDA PTX code: 3"
+        error_pattern = r"Files missing CUDA PTX code: 4"
         with self.mocked_stdout_stderr():
             self.assertErrorRegex(EasyBuildError, error_pattern, self._test_toy_build, ec_file=toy_ec_cuda,
                                   extra_args=args, raise_error=True)
@@ -3299,7 +3443,7 @@ class ToyBuildTest(EnhancedTestCase):
             stdout = self.get_stdout()
         self.assertIn(device_additional_70_code_msg, outtxt)
 
-        assert_cuda_report(missing_cc=0, additional_cc=3, missing_ptx=3, log=outtxt, stdout=stdout)
+        assert_cuda_report(missing_cc=0, additional_cc=4, missing_ptx=4, log=outtxt, stdout=stdout)
 
         # Test case 5: same as Test case 4, but add --cuda-sanity-check-accept-missing-ptx
         # This is expected to succeed: device code is present, PTX code is missing, but that's accepted
@@ -3314,7 +3458,7 @@ class ToyBuildTest(EnhancedTestCase):
             stdout = self.get_stdout()
         self.assertIn(device_additional_70_code_msg, outtxt)
         self.assertRegex(outtxt, warning_pattern)
-        assert_cuda_report(missing_cc=0, additional_cc=3, missing_ptx=3, log=outtxt, stdout=stdout)
+        assert_cuda_report(missing_cc=0, additional_cc=4, missing_ptx=4, log=outtxt, stdout=stdout)
 
         # Test case 6: same as Test case 5, but add --cuda-sanity-check-strict
         # This is expected to fail: device code is present, PTX code is missing (but accepted due to option)
@@ -3322,14 +3466,14 @@ class ToyBuildTest(EnhancedTestCase):
         args = ['--cuda-compute-capabilities=9.0', '--cuda-sanity-check-error-on-failed-checks',
                 '--cuda-sanity-check-accept-missing-ptx', '--cuda-sanity-check-strict']
         # We expect this to fail, so first check error, then run again to check output
-        error_pattern = r"Files with additional CUDA device code: 3"
+        error_pattern = r"Files with additional CUDA device code: 4"
         with self.mocked_stdout_stderr():
             self.assertErrorRegex(EasyBuildError, error_pattern, self._test_toy_build, ec_file=toy_ec_cuda,
                                   extra_args=args, raise_error=True)
             outtxt = self._test_toy_build(ec_file=toy_ec_cuda, extra_args=args, raise_error=False, verify=False)
             stdout = self.get_stdout()
         self.assertIn(device_additional_70_code_msg, outtxt)
-        assert_cuda_report(missing_cc=0, additional_cc=3, missing_ptx=3, log=outtxt, stdout=stdout)
+        assert_cuda_report(missing_cc=0, additional_cc=4, missing_ptx=4, log=outtxt, stdout=stdout)
 
         # Test case 7: same as Test case 6, but add the failing file to the cuda_sanity_ignore_files
         # This is expected to succeed: the individual file which _would_ cause the sanity check to fail is
@@ -3497,19 +3641,19 @@ class ToyBuildTest(EnhancedTestCase):
                 r'',
             ]),
             r"  >> command completed: exit 0, ran in .*",
-            r'^' + r'\n'.join([
-                r"== sanity checking\.\.\.",
-                r"  >> file 'bin/yot' or 'bin/toy' found: OK",
-                r"  >> \(non-empty\) directory 'bin' found: OK",
-                r"  >> loading modules: toy/0.0\.\.\.",
-                r"  >> running command 'toy' \.\.\.",
-                r"  >> result for command 'toy': OK",
-            ]) + r'$',
             r"^== creating module\.\.\.\n  >> generating module file @ .*/modules/all/toy/0\.0(?:\.lua)?$",
         ]
-        for pattern in patterns:
-            regex = re.compile(pattern, re.M)
-            self.assertTrue(regex.search(stdout), "Pattern '%s' found in: %s" % (regex.pattern, stdout))
+        self.assert_multi_regex(patterns, stdout)
+        expected_stdout = textwrap.dedent("""
+            == sanity checking...
+              >> loading modules: toy/0.0...
+              >> file 'bin/yot' or 'bin/toy' found: OK
+              >> (non-empty) directory 'bin' found: OK
+              >> loading modules: toy/0.0...
+              >> running command 'toy' ...
+              >> result for command 'toy': OK
+        """)
+        self.assertIn(expected_stdout, stdout)
 
     def test_toy_build_hooks(self):
         """Test use of --hooks."""
@@ -3648,10 +3792,12 @@ class ToyBuildTest(EnhancedTestCase):
             ['%(name)s-%(version)s.tar.gz']
             echo toy
             in module-write hook hook for {mod_name}
-            installing of extension bar is done!
             in module-write hook hook for {mod_name}
+            in module-write hook hook for {mod_name}
+            installing of extension bar is done!
             pre_run_shell_cmd_hook triggered for ' gcc toy.c -o toy '
             ' gcc toy.c -o toy  && copy_toy_file toy copy_of_toy' command failed (exit code 127), but I fixed it!
+            in module-write hook hook for {mod_name}
             installing of extension toy is done!
             pre_sanity_check_hook
             in module-write hook hook for {mod_name}

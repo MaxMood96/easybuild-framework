@@ -190,12 +190,13 @@ DEFAULT_CONFIG = {
     'license_server_port': [None, 'Port for license server', LICENSE],
 
     # EXTENSIONS easyconfig parameters
-    'exts_download_dep_fail': [False, "Fail if downloaded dependencies are detected for extensions", EXTENSIONS],
     'exts_classmap': [{}, "Map of extension name to class for handling build and installation.", EXTENSIONS],
     'exts_defaultclass': [None, "Name of default easyblock for extensions", EXTENSIONS],
     'exts_default_options': [{}, "List of default options for extensions", EXTENSIONS],
+    'exts_download_dep_fail': [False, "Fail if downloaded dependencies are detected for extensions", EXTENSIONS],
     'exts_filter': [None, ("Extension filter details: template for cmd and input to cmd "
                            "(templates for ext_name, ext_version and src)."), EXTENSIONS],
+    'exts_formatter': [None, "Function to format extension names in module file", EXTENSIONS],
     'exts_list': [[], 'List with extensions added to the base installation', EXTENSIONS],
 
     # MODULES easyconfig parameters
