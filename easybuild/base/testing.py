@@ -211,7 +211,7 @@ class TestCase(OrigTestCase):
     @contextmanager
     def mocked_stdout(self, force_tty=False):
         """Context manager to mock stdout"""
-        self.mock_stdout(True)
+        self.mock_stdout(True, force_tty=force_tty)
         try:
             yield sys.stdout
         finally:
@@ -220,7 +220,7 @@ class TestCase(OrigTestCase):
     @contextmanager
     def mocked_stderr(self, force_tty=False):
         """Context manager to mock stdout"""
-        self.mock_stderr(True)
+        self.mock_stderr(True, force_tty=force_tty)
         try:
             yield sys.stderr
         finally:
