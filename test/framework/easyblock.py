@@ -199,12 +199,9 @@ class EasyBlockTest(EnhancedTestCase):
         # $TMPDIR is not touched yet at this point
         self.assertEqual(os.environ.get('TMPDIR'), orig_tmpdir)
 
-        self.mock_stderr(True)
-        self.mock_stdout(True)
-        eb.prepare_step(start_dir=False)
-        stderr = self.get_stderr()
-        self.mock_stderr(False)
-        self.mock_stdout(False)
+        with self.mocked_stdout_stderr():
+            eb.prepare_step(start_dir=False)
+            stderr = self.get_stderr()
         self.assertTrue(stderr.strip().startswith("WARNING: Long $TMPDIR path may cause problems with OpenMPI 2.x"))
 
         # we expect $TMPDIR to be tweaked by the prepare step (OpenMPI 2.x doesn't like long $TMPDIR values)
@@ -1229,10 +1226,10 @@ class EasyBlockTest(EnhancedTestCase):
         expected_iter_opts['configopts'] = ["--opt1 --anotheropt", "--opt2", "--opt3 --optbis"]
 
         # once iteration mode is set, we're still in iteration #0
-        self.mock_stdout(True)
-        eb.handle_iterate_opts()
-        stdout = self.get_stdout()
-        self.mock_stdout(False)
+        with self.mocked_stdout():
+            eb.handle_iterate_opts()
+            stdout = self.get_stdout()
+
         self.assertEqual(eb.iter_idx, 0)
         self.assertEqual(stdout, "== starting iteration 1/3 ...\n")
         self.assertEqual(eb.cfg.iterating, True)
@@ -1243,10 +1240,10 @@ class EasyBlockTest(EnhancedTestCase):
         self.assertEqual(eb.iter_opts, expected_iter_opts)
 
         # when next iteration is start, iteration index gets bumped
-        self.mock_stdout(True)
-        eb.handle_iterate_opts()
-        stdout = self.get_stdout()
-        self.mock_stdout(False)
+        with self.mocked_stdout():
+            eb.handle_iterate_opts()
+            stdout = self.get_stdout()
+
         self.assertEqual(eb.iter_idx, 1)
         self.assertEqual(stdout, "== starting iteration 2/3 ...\n")
         self.assertEqual(eb.cfg.iterating, True)
@@ -1256,10 +1253,10 @@ class EasyBlockTest(EnhancedTestCase):
         self.assertEqual(eb.cfg['configopts'], "--opt2")
         self.assertEqual(eb.iter_opts, expected_iter_opts)
 
-        self.mock_stdout(True)
-        eb.handle_iterate_opts()
-        stdout = self.get_stdout()
-        self.mock_stdout(False)
+        with self.mocked_stdout():
+            eb.handle_iterate_opts()
+            stdout = self.get_stdout()
+
         self.assertEqual(eb.iter_idx, 2)
         self.assertEqual(stdout, "== starting iteration 3/3 ...\n")
         self.assertEqual(eb.cfg.iterating, True)
@@ -1683,10 +1680,9 @@ class EasyBlockTest(EnhancedTestCase):
         eb.installdir = config.install_path()
 
         update_build_option('trace', True)
-        self.mock_stdout(True)
-        eb.extensions_step(fetch=True)
-        stdout = self.get_stdout()
-        self.mock_stdout(False)
+        with self.mocked_stdout():
+            eb.extensions_step(fetch=True)
+            stdout = self.get_stdout()
 
         pattern = r">> running shell command:\n\s+bar.sh(\n\s+\[.*\]){3}\n\s+>> command completed: exit 0"
         self.assertRegex(stdout, re.compile(pattern, re.M))
@@ -2159,11 +2155,9 @@ class EasyBlockTest(EnhancedTestCase):
         eb = EasyBlock(EasyConfig(self.eb_file))
 
         error_pattern = common_error_pattern + ", please follow the download instructions above"
-        self.mock_stderr(True)
-        self.mock_stdout(True)
-        self.assertErrorRegex(EasyBuildError, error_pattern, eb.fetch_step)
-        stderr = self.get_stderr().strip()
-        self.mock_stderr(False)
+        with self.mocked_stdout_stderr():
+            self.assertErrorRegex(EasyBuildError, error_pattern, eb.fetch_step)
+            stderr = self.get_stderr().strip()
         self.assertIn("Download instructions:\n\n    Manual download from example.com required", stderr)
         self.assertIn("Make the files available in the active source path", stderr)
 
@@ -2173,12 +2167,10 @@ class EasyBlockTest(EnhancedTestCase):
         # now downloading of sources for extension should fail
         # top-level download instructions are printed (because there's nothing else)
         error_pattern = "^Couldn't find file ext_with_missing_sources-0.0.tar.gz anywhere"
-        self.mock_stderr(True)
-        self.mock_stdout(True)
-        self.assertErrorRegex(EasyBuildError, error_pattern, eb.fetch_step)
-        stderr = self.get_stderr().strip()
-        self.mock_stderr(False)
-        self.mock_stdout(False)
+        with self.mocked_stdout_stderr():
+            self.assertErrorRegex(EasyBuildError, error_pattern, eb.fetch_step)
+            stderr = self.get_stderr().strip()
+
         self.assertIn("Download instructions:\n\n    Manual download from example.com required", stderr)
         self.assertIn("Make the files available in the active source path", stderr)
 
@@ -2188,12 +2180,9 @@ class EasyBlockTest(EnhancedTestCase):
         eb = EasyBlock(EasyConfig(self.eb_file))
 
         # no download instructions printed anymore now
-        self.mock_stderr(True)
-        self.mock_stdout(True)
-        self.assertErrorRegex(EasyBuildError, error_pattern, eb.fetch_step)
-        stderr = self.get_stderr().strip()
-        self.mock_stderr(False)
-        self.mock_stdout(False)
+        with self.mocked_stdout_stderr():
+            self.assertErrorRegex(EasyBuildError, error_pattern, eb.fetch_step)
+            stderr = self.get_stderr().strip()
 
         # inject download instructions for extension
         download_instructions = ' ' * 8 + "'download_instructions': "
@@ -2203,12 +2192,10 @@ class EasyBlockTest(EnhancedTestCase):
         self.writeEC()
         eb = EasyBlock(EasyConfig(self.eb_file))
 
-        self.mock_stderr(True)
-        self.mock_stdout(True)
-        self.assertErrorRegex(EasyBuildError, error_pattern, eb.fetch_step)
-        stderr = self.get_stderr().strip()
-        self.mock_stderr(False)
-        self.mock_stdout(False)
+        with self.mocked_stdout_stderr():
+            self.assertErrorRegex(EasyBuildError, error_pattern, eb.fetch_step)
+            stderr = self.get_stderr().strip()
+
         self.assertIn("Download instructions:\n\n    Extension sources must be downloaded via example.com", stderr)
         self.assertIn("Make the files available in the active source path", stderr)
 
@@ -2217,12 +2204,10 @@ class EasyBlockTest(EnhancedTestCase):
         self.writeEC()
         eb = EasyBlock(EasyConfig(self.eb_file))
 
-        self.mock_stderr(True)
-        self.mock_stdout(True)
-        self.assertErrorRegex(EasyBuildError, error_pattern, eb.fetch_step)
-        stderr = self.get_stderr().strip()
-        self.mock_stderr(False)
-        self.mock_stdout(False)
+        with self.mocked_stdout_stderr():
+            self.assertErrorRegex(EasyBuildError, error_pattern, eb.fetch_step)
+            stderr = self.get_stderr().strip()
+
         self.assertIn("Download instructions:\n\n    Extension sources must be downloaded via example.com", stderr)
         self.assertIn("Make the files available in the active source path", stderr)
 
@@ -2230,12 +2215,10 @@ class EasyBlockTest(EnhancedTestCase):
         write_file(os.path.join(os.path.dirname(self.eb_file), 'ext_with_missing_sources-0.0.tar.gz'), '')
 
         # no more errors, all source files found (so no download instructions printed either)
-        self.mock_stderr(True)
-        self.mock_stdout(True)
-        eb.fetch_step()
-        stderr = self.get_stderr().strip()
-        self.mock_stderr(False)
-        self.mock_stdout(False)
+        with self.mocked_stdout_stderr():
+            eb.fetch_step()
+            stderr = self.get_stderr().strip()
+
         self.assertEqual(stderr, '')
 
     def test_fetch_patches(self):
@@ -2359,12 +2342,10 @@ class EasyBlockTest(EnhancedTestCase):
         remove_file(os.path.join(tmpdir, 'a', 'alt_toy', toy_tarball))
 
         # enabling force_download results in re-downloading, even if file is already in sourcepath
-        self.mock_stderr(True)
-        self.mock_stdout(True)
-        res = eb.obtain_file(toy_tarball, urls=['file://%s' % tmpdir_subdir], force_download=True)
-        stderr = self.get_stderr()
-        self.mock_stderr(False)
-        self.mock_stdout(False)
+        with self.mocked_stdout_stderr():
+            res = eb.obtain_file(toy_tarball, urls=['file://%s' % tmpdir_subdir], force_download=True)
+            stderr = self.get_stderr()
+
         msg = "WARNING: Found file toy-0.0.tar.gz at %s, but re-downloading it anyway..." % toy_tarball_path
         self.assertEqual(stderr.strip(), msg)
 
@@ -3436,23 +3417,19 @@ class EasyBlockTest(EnhancedTestCase):
         }
         init_config(build_options=build_options)
 
-        self.mock_stderr(True)
-        self.mock_stdout(True)
-        eb.checksum_step()
-        stderr = self.get_stderr()
-        stdout = self.get_stdout()
-        self.mock_stderr(False)
-        self.mock_stdout(False)
+        with self.mocked_stdout_stderr():
+            eb.checksum_step()
+            stderr = self.get_stderr()
+            stdout = self.get_stdout()
+
         self.assertEqual(stdout, '')
         self.assertEqual(stderr.strip(), "WARNING: Ignoring failing checksum verification for toy-0.0.tar.gz")
 
-        self.mock_stderr(True)
-        self.mock_stdout(True)
-        eb.collect_exts_file_info()
-        stderr = self.get_stderr()
-        stdout = self.get_stdout()
-        self.mock_stderr(False)
-        self.mock_stdout(False)
+        with self.mocked_stdout_stderr():
+            eb.collect_exts_file_info()
+            stderr = self.get_stderr()
+            stdout = self.get_stdout()
+
         self.assertEqual(stdout, '')
         self.assertEqual(stderr.strip(), "WARNING: Ignoring failing checksum verification for bar-0.0.tar.gz\n\n\n"
                                          "WARNING: Ignoring failing checksum verification for toy-0.0.tar.gz")
@@ -3797,14 +3774,12 @@ class EasyBlockTest(EnhancedTestCase):
 
         def run_sanity_check_step(sanity_check_paths, enhance_sanity_check):
             """Helper function to run sanity check step, and do trivial check on generated output."""
-            self.mock_stderr(True)
-            self.mock_stdout(True)
-            eb.cfg['sanity_check_paths'] = sanity_check_paths
-            eb.cfg['enhance_sanity_check'] = enhance_sanity_check
-            eb.sanity_check_step()
-            stderr, stdout = self.get_stderr(), self.get_stdout()
-            self.mock_stderr(False)
-            self.mock_stdout(False)
+            with self.mocked_stdout_stderr():
+                eb.cfg['sanity_check_paths'] = sanity_check_paths
+                eb.cfg['enhance_sanity_check'] = enhance_sanity_check
+                eb.sanity_check_step()
+                stderr, stdout = self.get_stderr(), self.get_stdout()
+
             self.assertFalse(stderr)
             self.assertTrue(stdout.startswith("Sanity check paths"))
 

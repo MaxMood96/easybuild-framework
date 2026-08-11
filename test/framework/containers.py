@@ -74,13 +74,10 @@ class ContainersTest(EnhancedTestCase):
 
     def run_main(self, args, raise_error=True):
         """Helper function to run main with arguments specified in 'args' and return stdout/stderr."""
-        self.mock_stdout(True)
-        self.mock_stderr(True)
-        self.eb_main(args, raise_error=raise_error, verbose=True, do_build=True)
-        stdout = self.get_stdout().strip()
-        stderr = self.get_stderr().strip()
-        self.mock_stdout(False)
-        self.mock_stderr(False)
+        with self.mocked_stdout_stderr():
+            self.eb_main(args, raise_error=raise_error, verbose=True, do_build=True)
+            stdout = self.get_stdout().strip()
+            stderr = self.get_stderr().strip()
 
         return stdout, stderr
 
@@ -337,9 +334,8 @@ class ContainersTest(EnhancedTestCase):
         # test again with container image already existing
 
         error_pattern = "Container image already exists at %s, not overwriting it without --force" % cont_img
-        self.mock_stdout(True)
-        self.assertErrorRegex(EasyBuildError, error_pattern, self.run_main, args, raise_error=True)
-        self.mock_stdout(False)
+        with self.mocked_stdout():
+            self.assertErrorRegex(EasyBuildError, error_pattern, self.run_main, args, raise_error=True)
 
         args.append('--force')
         stdout, stderr = self.run_main(args)
@@ -397,11 +393,12 @@ class ContainersTest(EnhancedTestCase):
 
         error_pattern = "Container recipe at %s/containers/Dockerfile.toy-0.0 already exists, " \
                         "not overwriting it without --force" % self.test_prefix
-        self.assertErrorRegex(EasyBuildError,
-                              error_pattern,
-                              self.run_main,
-                              base_args + ['--container-config=centos:7'],
-                              raise_error=True)
+        with self.mocked_stdout():
+            self.assertErrorRegex(EasyBuildError,
+                                  error_pattern,
+                                  self.run_main,
+                                  base_args + ['--container-config=centos:7'],
+                                  raise_error=True)
 
         remove_file(os.path.join(self.test_prefix, 'containers', 'Dockerfile.toy-0.0'))
 

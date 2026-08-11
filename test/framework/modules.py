@@ -1449,12 +1449,9 @@ class ModulesTest(EnhancedTestCase):
         def check_loaded_modules():
             "Helper function to run check_loaded_modules and check on stdout/stderr."
             # there should be no errors/warnings by default if no (EasyBuild-generated) modules are loaded
-            self.mock_stdout(True)
-            self.mock_stderr(True)
-            self.modtool.check_loaded_modules()
-            stdout, stderr = self.get_stdout(), self.get_stderr()
-            self.mock_stdout(False)
-            self.mock_stderr(False)
+            with self.mocked_stdout_stderr():
+                self.modtool.check_loaded_modules()
+                stdout, stderr = self.get_stdout(), self.get_stderr()
             self.assertEqual(stdout, '')
             return stderr.strip()
 

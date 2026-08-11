@@ -605,7 +605,7 @@ class RunTest(EnhancedTestCase):
 
             try:
                 run_shell_cmd(cmd)
-                self.assertFalse("This should never be reached, RunShellCmdError should occur!")
+                self.fail("This should never be reached, RunShellCmdError should occur!")
             except RunShellCmdError as err:
                 self.assertEqual(str(err), "Shell command 'kill' failed!")
                 self.assertEqual(err.cmd, "kill -9 $$")
@@ -642,7 +642,7 @@ class RunTest(EnhancedTestCase):
             # check error reporting output when stdout/stderr are collected separately
             try:
                 run_shell_cmd(cmd, split_stderr=True)
-                self.assertFalse("This should never be reached, RunShellCmdError should occur!")
+                self.fail("This should never be reached, RunShellCmdError should occur!")
             except RunShellCmdError as err:
                 self.assertEqual(str(err), "Shell command 'kill' failed!")
                 self.assertEqual(err.cmd, "kill -9 $$")
@@ -872,13 +872,10 @@ class RunTest(EnhancedTestCase):
         ]
 
         # trace output is enabled by default (since EasyBuild v5.0)
-        self.mock_stdout(True)
-        self.mock_stderr(True)
-        (out, ec) = run_cmd("echo hello")
-        stdout = self.get_stdout()
-        stderr = self.get_stderr()
-        self.mock_stdout(False)
-        self.mock_stderr(False)
+        with self.mocked_stdout_stderr():
+            (out, ec) = run_cmd("echo hello")
+            stdout = self.get_stdout()
+            stderr = self.get_stderr()
         self.assertEqual(out, 'hello\n')
         self.assertEqual(ec, 0)
         self.assertTrue(stderr.strip().startswith("WARNING: Deprecated functionality"))
@@ -886,13 +883,10 @@ class RunTest(EnhancedTestCase):
         self.assertTrue(regex.search(stdout), "Pattern '%s' found in: %s" % (regex.pattern, stdout))
 
         update_build_option('trace', False)
-        self.mock_stdout(True)
-        self.mock_stderr(True)
-        (out, ec) = run_cmd("echo hello")
-        stdout = self.get_stdout()
-        stderr = self.get_stderr()
-        self.mock_stdout(False)
-        self.mock_stderr(False)
+        with self.mocked_stdout_stderr():
+            (out, ec) = run_cmd("echo hello")
+            stdout = self.get_stdout()
+            stderr = self.get_stderr()
         self.assertEqual(out, 'hello\n')
         self.assertEqual(ec, 0)
         self.assertTrue(stderr.strip().startswith("WARNING: Deprecated functionality"))
@@ -900,13 +894,10 @@ class RunTest(EnhancedTestCase):
 
         # also test with command that is fed input via stdin
         update_build_option('trace', True)
-        self.mock_stdout(True)
-        self.mock_stderr(True)
-        (out, ec) = run_cmd('cat', inp='hello')
-        stdout = self.get_stdout()
-        stderr = self.get_stderr()
-        self.mock_stdout(False)
-        self.mock_stderr(False)
+        with self.mocked_stdout_stderr():
+            (out, ec) = run_cmd('cat', inp='hello')
+            stdout = self.get_stdout()
+            stderr = self.get_stderr()
         self.assertEqual(out, 'hello')
         self.assertEqual(ec, 0)
         self.assertTrue(stderr.strip().startswith("WARNING: Deprecated functionality"))
@@ -916,13 +907,10 @@ class RunTest(EnhancedTestCase):
         self.assertTrue(regex.search(stdout), "Pattern '%s' found in: %s" % (regex.pattern, stdout))
 
         update_build_option('trace', False)
-        self.mock_stdout(True)
-        self.mock_stderr(True)
-        (out, ec) = run_cmd('cat', inp='hello')
-        stdout = self.get_stdout()
-        stderr = self.get_stderr()
-        self.mock_stdout(False)
-        self.mock_stderr(False)
+        with self.mocked_stdout_stderr():
+            (out, ec) = run_cmd('cat', inp='hello')
+            stdout = self.get_stdout()
+            stderr = self.get_stderr()
         self.assertEqual(out, 'hello')
         self.assertEqual(ec, 0)
         self.assertTrue(stderr.strip().startswith("WARNING: Deprecated functionality"))
@@ -932,13 +920,10 @@ class RunTest(EnhancedTestCase):
         for trace in (True, False):
             init_config(build_options={'trace': trace})
 
-            self.mock_stdout(True)
-            self.mock_stderr(True)
-            (out, ec) = run_cmd("echo hello", trace=False)
-            stdout = self.get_stdout()
-            stderr = self.get_stderr()
-            self.mock_stdout(False)
-            self.mock_stderr(False)
+            with self.mocked_stdout_stderr():
+                (out, ec) = run_cmd("echo hello", trace=False)
+                stdout = self.get_stdout()
+                stderr = self.get_stderr()
             self.assertEqual(out, 'hello\n')
             self.assertEqual(ec, 0)
             self.assertEqual(stdout, '')
@@ -958,13 +943,10 @@ class RunTest(EnhancedTestCase):
             r"  >> command completed: exit 0, ran in .*",
         ]
 
-        self.mock_stdout(True)
-        self.mock_stderr(True)
-        res = run_shell_cmd("echo hello")
-        stdout = self.get_stdout()
-        stderr = self.get_stderr()
-        self.mock_stdout(False)
-        self.mock_stderr(False)
+        with self.mocked_stdout_stderr():
+            res = run_shell_cmd("echo hello")
+            stdout = self.get_stdout()
+            stderr = self.get_stderr()
         self.assertEqual(res.output, 'hello\n')
         self.assertEqual(res.exit_code, 0)
         self.assertEqual(stderr, '')
@@ -972,13 +954,10 @@ class RunTest(EnhancedTestCase):
         self.assertTrue(regex.search(stdout), "Pattern '%s' found in: %s" % (regex.pattern, stdout))
 
         init_config(build_options={'trace': False})
-        self.mock_stdout(True)
-        self.mock_stderr(True)
-        res = run_shell_cmd("echo hello")
-        stdout = self.get_stdout()
-        stderr = self.get_stderr()
-        self.mock_stdout(False)
-        self.mock_stderr(False)
+        with self.mocked_stdout_stderr():
+            res = run_shell_cmd("echo hello")
+            stdout = self.get_stdout()
+            stderr = self.get_stderr()
         self.assertEqual(res.output, 'hello\n')
         self.assertEqual(res.exit_code, 0)
         self.assertEqual(stderr, '')
@@ -988,13 +967,10 @@ class RunTest(EnhancedTestCase):
         for trace in (True, False):
             init_config(build_options={'trace': trace})
 
-            self.mock_stdout(True)
-            self.mock_stderr(True)
-            res = run_shell_cmd("echo hello", hidden=True)
-            stdout = self.get_stdout()
-            stderr = self.get_stderr()
-            self.mock_stdout(False)
-            self.mock_stderr(False)
+            with self.mocked_stdout_stderr():
+                res = run_shell_cmd("echo hello", hidden=True)
+                stdout = self.get_stdout()
+                stderr = self.get_stderr()
             self.assertEqual(res.output, 'hello\n')
             self.assertEqual(res.exit_code, 0)
             self.assertEqual(stdout, '')
@@ -1014,13 +990,10 @@ class RunTest(EnhancedTestCase):
             r"  >> command completed: exit 0, ran in .*",
         ]
 
-        self.mock_stdout(True)
-        self.mock_stderr(True)
-        res = run_shell_cmd("echo hello")
-        stdout = self.get_stdout()
-        stderr = self.get_stderr()
-        self.mock_stdout(False)
-        self.mock_stderr(False)
+        with self.mocked_stdout_stderr():
+            res = run_shell_cmd("echo hello")
+            stdout = self.get_stdout()
+            stderr = self.get_stderr()
         self.assertEqual(res.output, 'hello\n')
         self.assertEqual(res.exit_code, 0)
         self.assertEqual(stderr, '')
@@ -1028,13 +1001,10 @@ class RunTest(EnhancedTestCase):
         self.assertTrue(regex.search(stdout), "Pattern '%s' found in: %s" % (regex.pattern, stdout))
 
         # also test with command that is fed input via stdin
-        self.mock_stdout(True)
-        self.mock_stderr(True)
-        res = run_shell_cmd('cat', stdin='hello')
-        stdout = self.get_stdout()
-        stderr = self.get_stderr()
-        self.mock_stdout(False)
-        self.mock_stderr(False)
+        with self.mocked_stdout_stderr():
+            res = run_shell_cmd('cat', stdin='hello')
+            stdout = self.get_stdout()
+            stderr = self.get_stderr()
         self.assertEqual(res.output, 'hello')
         self.assertEqual(res.exit_code, 0)
         self.assertEqual(stderr, '')
@@ -1044,13 +1014,10 @@ class RunTest(EnhancedTestCase):
         self.assertTrue(regex.search(stdout), "Pattern '%s' found in: %s" % (regex.pattern, stdout))
 
         # trace output can be disabled on a per-command basis by enabling 'hidden'
-        self.mock_stdout(True)
-        self.mock_stderr(True)
-        res = run_shell_cmd("echo hello", hidden=True)
-        stdout = self.get_stdout()
-        stderr = self.get_stderr()
-        self.mock_stdout(False)
-        self.mock_stderr(False)
+        with self.mocked_stdout_stderr():
+            res = run_shell_cmd("echo hello", hidden=True)
+            stdout = self.get_stdout()
+            stderr = self.get_stderr()
         self.assertEqual(res.output, 'hello\n')
         self.assertEqual(res.exit_code, 0)
         self.assertEqual(stdout, '')
@@ -1346,13 +1313,10 @@ class RunTest(EnhancedTestCase):
         self.allow_deprecated_behaviour()
 
         # --trace is enabled by default
-        self.mock_stdout(True)
-        self.mock_stderr(True)
-        (out, ec) = run_cmd_qa("echo 'n: '; read n; seq 1 $n", {'n: ': '5'})
-        stdout = self.get_stdout()
-        stderr = self.get_stderr()
-        self.mock_stdout(False)
-        self.mock_stderr(False)
+        with self.mocked_stdout_stderr():
+            (out, ec) = run_cmd_qa("echo 'n: '; read n; seq 1 $n", {'n: ': '5'})
+            stdout = self.get_stdout()
+            stderr = self.get_stderr()
         self.assertTrue(stderr.strip().startswith("WARNING: Deprecated functionality"))
         pattern = r"^  >> running interactive command:\n"
         pattern += r"\t\[started at: .*\]\n"
@@ -1363,13 +1327,10 @@ class RunTest(EnhancedTestCase):
         self.assertTrue(re.search(pattern, stdout), "Pattern '%s' found in: %s" % (pattern, stdout))
 
         # trace output can be disabled on a per-command basis
-        self.mock_stdout(True)
-        self.mock_stderr(True)
-        (out, ec) = run_cmd("echo hello", trace=False)
-        stdout = self.get_stdout()
-        stderr = self.get_stderr()
-        self.mock_stdout(False)
-        self.mock_stderr(False)
+        with self.mocked_stdout_stderr():
+            (out, ec) = run_cmd("echo hello", trace=False)
+            stdout = self.get_stdout()
+            stderr = self.get_stderr()
         self.assertEqual(stdout, '')
         self.assertTrue(stderr.strip().startswith("WARNING: Deprecated functionality"))
 
@@ -1377,13 +1338,10 @@ class RunTest(EnhancedTestCase):
         """Test run_shell_cmd with qa_patterns under --trace"""
         update_build_option('trace', True)
 
-        self.mock_stdout(True)
-        self.mock_stderr(True)
-        run_shell_cmd("echo 'n: '; read n; seq 1 $n", qa_patterns=[('n: ', '5')])
-        stdout = self.get_stdout()
-        stderr = self.get_stderr()
-        self.mock_stdout(False)
-        self.mock_stderr(False)
+        with self.mocked_stdout_stderr():
+            run_shell_cmd("echo 'n: '; read n; seq 1 $n", qa_patterns=[('n: ', '5')])
+            stdout = self.get_stdout()
+            stderr = self.get_stderr()
         self.assertEqual(stderr, '')
         pattern = r"^  >> running interactive shell command:\n"
         pattern += r"\techo \'n: \'; read n; seq 1 \$n\n"
@@ -1394,13 +1352,10 @@ class RunTest(EnhancedTestCase):
         self.assertTrue(re.search(pattern, stdout), "Pattern '%s' found in: %s" % (pattern, stdout))
 
         # trace output can be disabled on a per-command basis
-        self.mock_stdout(True)
-        self.mock_stderr(True)
-        run_shell_cmd("echo 'n: '; read n; seq 1 $n", qa_patterns=[('n: ', '5')], hidden=True)
-        stdout = self.get_stdout()
-        stderr = self.get_stderr()
-        self.mock_stdout(False)
-        self.mock_stderr(False)
+        with self.mocked_stdout_stderr():
+            run_shell_cmd("echo 'n: '; read n; seq 1 $n", qa_patterns=[('n: ', '5')], hidden=True)
+            stdout = self.get_stdout()
+            stderr = self.get_stderr()
         self.assertEqual(stdout, '')
         self.assertEqual(stderr, '')
 
@@ -1622,10 +1577,9 @@ class RunTest(EnhancedTestCase):
 
         cmd = "somecommand foo 123 bar"
 
-        self.mock_stdout(True)
-        res = run_shell_cmd(cmd)
-        stdout = self.get_stdout()
-        self.mock_stdout(False)
+        with self.mocked_stdout():
+            res = run_shell_cmd(cmd)
+            stdout = self.get_stdout()
         # fake output/exit code is returned for commands not actually run in dry run mode
         self.assertEqual(res.exit_code, 0)
         self.assertEqual(res.output, '')
@@ -1635,10 +1589,9 @@ class RunTest(EnhancedTestCase):
         self.assertIn(expected, stdout)
 
         # check enabling 'hidden'
-        self.mock_stdout(True)
-        res = run_shell_cmd(cmd, hidden=True)
-        stdout = self.get_stdout()
-        self.mock_stdout(False)
+        with self.mocked_stdout():
+            res = run_shell_cmd(cmd, hidden=True)
+            stdout = self.get_stdout()
         # fake output/exit code is returned for commands not actually run in dry run mode
         self.assertEqual(res.exit_code, 0)
         self.assertEqual(res.output, '')
@@ -1649,11 +1602,10 @@ class RunTest(EnhancedTestCase):
         # check forced run_cmd
         outfile = os.path.join(self.test_prefix, 'cmd.out')
         self.assertNotExists(outfile)
-        self.mock_stdout(True)
-        res = run_shell_cmd("echo 'This is always echoed' > %s; echo done; false" % outfile,
-                            fail_on_error=False, in_dry_run=True)
-        stdout = self.get_stdout()
-        self.mock_stdout(False)
+        with self.mocked_stdout():
+            res = run_shell_cmd("echo 'This is always echoed' > %s; echo done; false" % outfile,
+                                fail_on_error=False, in_dry_run=True)
+            stdout = self.get_stdout()
         self.assertNotIn('running shell command "', stdout)
         self.assertNotEqual(res.exit_code, 0)
         self.assertEqual(res.output, 'done\n')
@@ -1741,13 +1693,10 @@ class RunTest(EnhancedTestCase):
         # use of run_cmd is deprecated, so we need to allow it here
         self.allow_deprecated_behaviour()
 
-        self.mock_stdout(True)
-        self.mock_stderr(True)
-        (out, ec) = run_cmd("echo hello", stream_output=True)
-        stdout = self.get_stdout()
-        stderr = self.get_stderr()
-        self.mock_stdout(False)
-        self.mock_stderr(False)
+        with self.mocked_stdout_stderr():
+            (out, ec) = run_cmd("echo hello", stream_output=True)
+            stdout = self.get_stdout()
+            stderr = self.get_stderr()
 
         self.assertEqual(ec, 0)
         self.assertEqual(out, "hello\n")
@@ -1764,22 +1713,19 @@ class RunTest(EnhancedTestCase):
     def test_run_shell_cmd_stream(self):
         """Test use of run_shell_cmd with streaming output."""
         init_config(build_options={'trace': True})
-        self.mock_stdout(True)
-        self.mock_stderr(True)
-        cmd = '; '.join([
-            "echo hello there",
-            "sleep 1",
-            "echo testing command that produces a fair amount of output",
-            "sleep 1",
-            "echo more than 128 bytes which means a whole bunch of characters...",
-            "sleep 1",
-            "echo more than 128 characters in fact, which is quite a bit when you think of it",
-        ])
-        res = run_shell_cmd(cmd, stream_output=True)
-        stdout = self.get_stdout()
-        stderr = self.get_stderr()
-        self.mock_stdout(False)
-        self.mock_stderr(False)
+        with self.mocked_stdout_stderr():
+            cmd = '; '.join([
+                "echo hello there",
+                "sleep 1",
+                "echo testing command that produces a fair amount of output",
+                "sleep 1",
+                "echo more than 128 bytes which means a whole bunch of characters...",
+                "sleep 1",
+                "echo more than 128 characters in fact, which is quite a bit when you think of it",
+            ])
+            res = run_shell_cmd(cmd, stream_output=True)
+            stdout = self.get_stdout()
+            stderr = self.get_stderr()
 
         expected_output = '\n'.join([
             "hello there",
@@ -1906,8 +1852,6 @@ class RunTest(EnhancedTestCase):
                 time.sleep(1)
                 output += get_output_from_process(proc)
                 ec = proc.poll()
-
-        with self.mocked_stdout_stderr():
             out, ec = complete_cmd(*cmd_info, simple=False, output=output)
         self.assertEqual(ec, 0)
         self.assertTrue(out.startswith('start\n'))
