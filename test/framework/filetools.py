@@ -3012,6 +3012,13 @@ class FileToolsTest(EnhancedTestCase):
         self.assertTrue(ft.dir_contains_files(subdir))
         self.assertTrue(ft.dir_contains_files(subdir, recursive=False))
 
+        # Broken symlink is not considered a file
+        ft.remove_file(os.path.join(dir_w_file, 'file.h'))
+        self.assertFalse(ft.dir_contains_files(dir_w_symlinked_file_in_subdir))
+        self.assertFalse(ft.dir_contains_files(dir_w_symlinked_file_in_subdir, recursive=False))
+        self.assertFalse(ft.dir_contains_files(subdir))
+        self.assertFalse(ft.dir_contains_files(subdir, recursive=False))
+
     def test_find_eb_script(self):
         """Test find_eb_script function."""
 
