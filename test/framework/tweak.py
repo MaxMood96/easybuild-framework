@@ -398,7 +398,7 @@ class TweakTest(EnhancedTestCase):
             'version': '0.2.8'
         }
 
-        with self.mocked_stdout_stderr():
+        with self.mocked_stderr():
             potential_versions = find_potential_version_mappings(openblas_dep, tc_mapping)
             errtxt = self.get_stderr()
             warning_stub = "\nWARNING: There may be newer version(s) of dep 'OpenBLAS' available with a different " \
