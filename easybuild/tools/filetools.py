@@ -1286,7 +1286,7 @@ def dir_contains_files(path, recursive=True):
     :recursive If False only the path itself is considered, else all subdirectories are also searched
     """
     if recursive:
-        return any(files for _root, _dirs, files in os.walk(path))
+        return any(files for _root, _dirs, files in os.walk(path, followlinks=True))
     else:
         return any(os.path.isfile(os.path.join(path, x)) for x in os.listdir(path))
 

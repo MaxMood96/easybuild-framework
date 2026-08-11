@@ -2983,6 +2983,35 @@ class FileToolsTest(EnhancedTestCase):
         self.assertTrue(ft.dir_contains_files(dir_w_dir_and_file))
         self.assertTrue(ft.dir_contains_files(dir_w_dir_and_file, recursive=False))
 
+        # Folder that is a symlink or contains a symlink to a folder
+        symlink_dir = makedirs_in_test('symlink_dir')
+        symlink_empty_folder = os.path.join(symlink_dir, 'to_empty')
+        ft.symlink(empty_dir, symlink_empty_folder)
+        self.assertFalse(ft.dir_contains_files(symlink_dir))
+        self.assertFalse(ft.dir_contains_files(symlink_dir, recursive=False))
+        self.assertFalse(ft.dir_contains_files(symlink_empty_folder))
+        self.assertFalse(ft.dir_contains_files(symlink_empty_folder, recursive=False))
+        symlink_full_folder = os.path.join(symlink_dir, 'to_full')
+        ft.symlink(dir_w_file, symlink_full_folder)
+        self.assertTrue(ft.dir_contains_files(symlink_dir))
+        self.assertFalse(ft.dir_contains_files(symlink_dir, recursive=False))
+        self.assertTrue(ft.dir_contains_files(symlink_full_folder))
+        self.assertTrue(ft.dir_contains_files(symlink_full_folder, recursive=False))
+
+        dir_w_symlinked_file = makedirs_in_test('dir_w_symlinked_file')
+        ft.symlink(os.path.join(dir_w_file, 'file.h'), os.path.join(dir_w_symlinked_file, 'file.h'))
+        self.assertTrue(ft.dir_contains_files(dir_w_symlinked_file))
+        self.assertTrue(ft.dir_contains_files(dir_w_symlinked_file, recursive=False))
+
+        dir_w_symlinked_file_in_subdir = makedirs_in_test('dir_w_symlinked_file_in_subdir', 'subdir')
+        subdir = os.path.join(dir_w_symlinked_file_in_subdir, 'subdir')
+        ft.symlink(os.path.join(dir_w_file, 'file.h'),
+                   os.path.join(subdir, 'file.h'))
+        self.assertTrue(ft.dir_contains_files(dir_w_symlinked_file_in_subdir))
+        self.assertFalse(ft.dir_contains_files(dir_w_symlinked_file_in_subdir, recursive=False))
+        self.assertTrue(ft.dir_contains_files(subdir))
+        self.assertTrue(ft.dir_contains_files(subdir, recursive=False))
+
     def test_find_eb_script(self):
         """Test find_eb_script function."""
 
