@@ -793,7 +793,7 @@ class RobotTest(EnhancedTestCase):
             '--tmpdir=%s' % self.test_prefix,
         ]
 
-        with self.mocked_stdout():
+        with self.mocked_stdout_stderr():
             outtxt = self.eb_main(args, logfile=dummylogfn, raise_error=True)
 
         # full path doesn't matter (helps to avoid failing tests due to resolved symlinks)
