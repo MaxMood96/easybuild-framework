@@ -215,7 +215,7 @@ class TestCase(OrigTestCase):
         try:
             yield sys.stdout
         finally:
-            self.mock_stdout(False, force_tty=force_tty)
+            self.mock_stdout(False)
 
     @contextmanager
     def mocked_stderr(self, force_tty=False):
@@ -224,7 +224,7 @@ class TestCase(OrigTestCase):
         try:
             yield sys.stderr
         finally:
-            self.mock_stderr(False, force_tty=force_tty)
+            self.mock_stderr(False)
 
     @contextmanager
     def mocked_stdout_stderr(self, mock_stdout=True, mock_stderr=True, force_tty=False):
