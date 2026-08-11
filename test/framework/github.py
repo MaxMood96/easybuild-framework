@@ -628,7 +628,6 @@ class GithubTest(EnhancedTestCase):
         self.assertIn('easybuild', os.listdir(repodir))
         self.assertTrue(re.match('^[0-9a-f]{40}$', read_file(shafile)))
         self.assertExists(os.path.join(repodir, 'easybuild', 'easyblocks', '__init__.py'))
-        # stdout capture released by context manager above
 
     def test_github_download_repo_commit(self):
         """Test downloading repo at specific commit (which does not require any GitHub token)"""
