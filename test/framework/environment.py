@@ -41,6 +41,10 @@ class EnvironmentTest(EnhancedTestCase):
 
     def test_join_path_var(self):
         """Test join_path_var function."""
+        # join_path_var is same as os.pathsep.join if there are no empty paths involved
+        paths = ['/foo', '/bar', '/baz']
+        self.assertEqual(env.join_path_var(paths), os.pathsep.join(paths))
+
         paths = ['/foo', '', '/bar', None, '/baz']
         self.assertEqual(env.join_path_var(paths), '/foo:/bar:/baz')
         self.assertEqual(env.join_path_var([Path(p) if p else p for p in paths]), '/foo:/bar:/baz')
