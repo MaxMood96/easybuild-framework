@@ -2293,34 +2293,32 @@ class EasyBlock:
             print_msg("installing extension %s %s (%d/%d)..." % tup, silent=self.silent, log=self.log)
             start_time = datetime.now()
 
-            if self.dry_run:
-                tup = (ext.name, ext.version, ext.__class__.__name__)
-                msg = "\n* installing extension %s %s using '%s' easyblock\n" % tup
-                self.dry_run_msg(msg)
+            if install:
+                if self.dry_run:
+                    tup = (ext.name, ext.version, ext.__class__.__name__)
+                    msg = "\n* installing extension %s %s using '%s' easyblock\n" % tup
+                    self.dry_run_msg(msg)
+                else:  # actual installation of the extension
+                    # restore build environment for this extension
+                    restore_env(build_env, log_changes=False)
 
-            # actual installation of the extension
-            elif install:
+                    try:
+                        ext.install_extension_substep("pre_install_extension")
+                        with self.module_generator.start_module_creation():
+                            txt = ext.install_extension_substep("install_extension")
+                        if txt:
+                            self.module_extra_extensions += txt
+                        ext.install_extension_substep("post_install_extension")
+                    finally:
+                        ext_duration = datetime.now() - start_time
+                        if ext_duration.total_seconds() >= 1:
+                            print_msg("\t... (took %s)", time2str(ext_duration), log=self.log, silent=self.silent)
+                        elif self.logdebug or build_option('trace'):
+                            print_msg("\t... (took < 1 sec)", log=self.log, silent=self.silent)
 
-                # restore build environment for this extension
-                restore_env(build_env, log_changes=False)
-
-                try:
-                    ext.install_extension_substep("pre_install_extension")
-                    with self.module_generator.start_module_creation():
-                        txt = ext.install_extension_substep("install_extension")
-                    if txt:
-                        self.module_extra_extensions += txt
-                    ext.install_extension_substep("post_install_extension")
-                finally:
-                    ext_duration = datetime.now() - start_time
-                    if ext_duration.total_seconds() >= 1:
-                        print_msg("\t... (took %s)", time2str(ext_duration), log=self.log, silent=self.silent)
-                    elif self.logdebug or build_option('trace'):
-                        print_msg("\t... (took < 1 sec)", log=self.log, silent=self.silent)
-
-                res = self._install_extensions_check_fake_mod_file(fake_mod_file_path, fake_mod_file_txt)
-                if res:
-                    build_env, fake_mod_file_txt = res
+                    res = self._install_extensions_check_fake_mod_file(fake_mod_file_path, fake_mod_file_txt)
+                    if res:
+                        build_env, fake_mod_file_txt = res
 
             self.update_exts_progress_bar(progress_info, progress_size=1)
 
