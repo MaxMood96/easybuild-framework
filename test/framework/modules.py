@@ -44,6 +44,7 @@ from easybuild.framework.easyblock import EasyBlock
 from easybuild.framework.easyconfig.easyconfig import EasyConfig
 from easybuild.tools import LooseVersion
 from easybuild.tools.build_log import EasyBuildError
+from easybuild.tools.environment import join_path_var
 from easybuild.tools.filetools import adjust_permissions, copy_file, copy_dir, mkdir
 from easybuild.tools.filetools import read_file, remove_dir, remove_file, symlink, write_file
 from easybuild.tools.modules import EnvironmentModules, EnvironmentModulesC, EnvironmentModulesTcl, Lmod, NoModulesTool
@@ -1324,7 +1325,7 @@ class ModulesTest(EnhancedTestCase):
         # Environment-Modules 4.x seems to resolve relative paths: /foo/../foo -> /foo
         # Hence we can only check the real paths
         def get_resolved_module_path():
-            return os.pathsep.join(os.path.realpath(p) for p in os.environ['MODULEPATH'].split(os.pathsep))
+            return join_path_var(os.path.realpath(p) for p in os.environ['MODULEPATH'].split(os.pathsep))
 
         test_dir1_relative = os.path.join(test_dir1, '..', os.path.basename(test_dir1))
         test_dir2_dot = os.path.join(os.path.dirname(test_dir2), '.', os.path.basename(test_dir2))
