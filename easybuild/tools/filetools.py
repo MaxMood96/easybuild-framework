@@ -62,6 +62,7 @@ import zlib
 from functools import partial
 from html.parser import HTMLParser
 from pathlib import Path
+from typing import List, Union
 import urllib.request as std_urllib
 
 from easybuild.base import fancylogger
@@ -2538,7 +2539,7 @@ def find_flexlm_license(custom_env_vars=None, lic_specs=None):
     return (valid_lic_specs, lic_env_var)
 
 
-def copy_file(path, target_path, force_in_dry_run=False):
+def copy_file(path: Union[str, Path], target_path: Union[str, Path], force_in_dry_run: bool = False):
     """
     Copy a file from specified location to specified location
 
@@ -2622,7 +2623,8 @@ def copy_file(path, target_path, force_in_dry_run=False):
             raise EasyBuildError("Failed to copy file %s to %s: %s", path, target_path, err)
 
 
-def copy_files(paths, target_path, force_in_dry_run=False, target_single_file=False, allow_empty=True, verbose=False):
+def copy_files(paths: List[Union[str, Path]], target_path: Union[str, Path], force_in_dry_run: bool = False,
+               target_single_file: bool = False, allow_empty: bool = True, verbose: bool = False) -> None:
     """
     Copy list of files to specified target path.
     Target directory is created if it doesn't exist yet.
@@ -2694,8 +2696,8 @@ def has_recursive_symlinks(path):
     return False
 
 
-def copy_dir(path, target_path, force_in_dry_run=False, dirs_exist_ok=False, check_for_recursive_symlinks=True,
-             **kwargs):
+def copy_dir(path: Union[str, Path], target_path: Union[str, Path], force_in_dry_run: bool = False,
+             dirs_exist_ok: bool = False, check_for_recursive_symlinks: bool = True, **kwargs) -> None:
     """
     Copy a directory from specified location to specified location
 
@@ -2775,7 +2777,8 @@ def copy_dir(path, target_path, force_in_dry_run=False, dirs_exist_ok=False, che
             raise EasyBuildError("Failed to copy directory %s to %s: %s", path, target_path, err)
 
 
-def copy(paths, target_path, force_in_dry_run=False, **kwargs):
+def copy(paths: Union[Union[str, Path], List[Union[str, Path]]], target_path: Union[str, Path],
+         force_in_dry_run: bool = False, **kwargs) -> None:
     """
     Copy single file/directory or list of files and directories to specified location
 
