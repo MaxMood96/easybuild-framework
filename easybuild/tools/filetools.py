@@ -2784,7 +2784,7 @@ def copy(paths, target_path, force_in_dry_run=False, **kwargs):
     :param force_in_dry_run: force running the command during dry run
     :param kwargs: additional named arguments to pass down to copy_dir
     """
-    if isinstance(paths, str):
+    if isinstance(paths, (str, Path)):
         paths = [paths]
 
     _log.info("Copying %d files & directories to %s", len(paths), target_path)
