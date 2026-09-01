@@ -82,6 +82,8 @@ try:
 except ImportError:
     HAVE_REQUESTS = False
 
+PathOrStr = Union[str, Path]
+
 _log = fancylogger.getLogger('filetools', fname=False)
 
 # easyblock class prefix
@@ -2539,7 +2541,7 @@ def find_flexlm_license(custom_env_vars=None, lic_specs=None):
     return (valid_lic_specs, lic_env_var)
 
 
-def copy_file(path: Union[str, Path], target_path: Union[str, Path], force_in_dry_run: bool = False):
+def copy_file(path: PathOrStr, target_path: PathOrStr, force_in_dry_run: bool = False):
     """
     Copy a file from specified location to specified location
 
@@ -2623,7 +2625,7 @@ def copy_file(path: Union[str, Path], target_path: Union[str, Path], force_in_dr
             raise EasyBuildError("Failed to copy file %s to %s: %s", path, target_path, err)
 
 
-def copy_files(paths: List[Union[str, Path]], target_path: Union[str, Path], force_in_dry_run: bool = False,
+def copy_files(paths: List[PathOrStr], target_path: PathOrStr, force_in_dry_run: bool = False,
                target_single_file: bool = False, allow_empty: bool = True, verbose: bool = False) -> None:
     """
     Copy list of files to specified target path.
@@ -2696,7 +2698,7 @@ def has_recursive_symlinks(path):
     return False
 
 
-def copy_dir(path: Union[str, Path], target_path: Union[str, Path], force_in_dry_run: bool = False,
+def copy_dir(path: PathOrStr, target_path: PathOrStr, force_in_dry_run: bool = False,
              dirs_exist_ok: bool = False, check_for_recursive_symlinks: bool = True, **kwargs) -> None:
     """
     Copy a directory from specified location to specified location
@@ -2777,7 +2779,7 @@ def copy_dir(path: Union[str, Path], target_path: Union[str, Path], force_in_dry
             raise EasyBuildError("Failed to copy directory %s to %s: %s", path, target_path, err)
 
 
-def copy(paths: Union[Union[str, Path], List[Union[str, Path]]], target_path: Union[str, Path],
+def copy(paths: Union[PathOrStr, List[PathOrStr]], target_path: PathOrStr,
          force_in_dry_run: bool = False, **kwargs) -> None:
     """
     Copy single file/directory or list of files and directories to specified location
