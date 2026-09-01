@@ -40,28 +40,28 @@ import sys
 import tempfile
 import textwrap
 import filecmp
-from easybuild.tools import LooseVersion
 from importlib import reload
+from unittest import TextTestRunner
 
+from test.framework import REPO_ROOT, TEST_DIR, TEST_ECS_DIR, TEST_MODULES_DIR, TOY_EC, TOY_EC_TXT
 from test.framework.utilities import EnhancedTestCase, TestLoaderFiltered, cleanup
 from test.framework.package import mock_fpm
-from unittest import TextTestRunner
-from test.framework import REPO_ROOT, TEST_DIR, TEST_ECS_DIR, TEST_MODULES_DIR, TOY_EC, TOY_EC_TXT
 import easybuild.tools.hooks  # so we can reset cached hooks
 import easybuild.tools.module_naming_scheme  # required to dynamically load test module naming scheme(s)
 from easybuild.framework.easyconfig.easyconfig import EasyConfig
 from easybuild.framework.easyconfig.parser import EasyConfigParser
 from easybuild.main import main_with_hooks
+from easybuild.tools import LooseVersion
 from easybuild.tools.build_log import EasyBuildError
 from easybuild.tools.config import get_module_syntax, get_repositorypath, update_build_option
 from easybuild.tools.environment import setvar
 from easybuild.tools.filetools import adjust_permissions, change_dir, copy_file, mkdir, move_file
 from easybuild.tools.filetools import read_file, remove_dir, remove_file, which, write_file
-from easybuild.tools.module_generator import ModuleGeneratorTcl
 from easybuild.tools.modules import EnvironmentModules, Lmod
+from easybuild.tools.module_generator import ModuleGeneratorTcl
 from easybuild.tools.run import run_shell_cmd
-from easybuild.tools.utilities import nub
 from easybuild.tools.systemtools import get_shared_lib_ext
+from easybuild.tools.utilities import nub
 from easybuild.tools.version import VERSION as EASYBUILD_VERSION
 
 
