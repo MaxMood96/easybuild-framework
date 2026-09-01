@@ -46,6 +46,7 @@ import textwrap
 import time
 import types
 from io import StringIO
+from pathlib import Path
 from test.framework.github import requires_github_access
 from test.framework.utilities import EnhancedTestCase, TestLoaderFiltered, init_config
 from unittest import TextTestRunner
@@ -829,11 +830,13 @@ class FileToolsTest(EnhancedTestCase):
     def test_mkdir(self):
         """Test mkdir function."""
 
-        def check_mkdir(path, error=None, **kwargs):
+        def check_mkdir(path, error=None, expected_path=None, **kwargs):
             """Create specified directory with mkdir, and check for correctness."""
             if error is None:
+                if expected_path is None:
+                    expected_path = path
                 ft.mkdir(path, **kwargs)
-                self.assertTrue(os.path.exists(path) and os.path.isdir(path), "Directory %s exists" % path)
+                self.assertTrue(os.path.isdir(expected_path), "Directory %s exists" % expected_path)
             else:
                 self.assertErrorRegex(EasyBuildError, error, ft.mkdir, path, **kwargs)
 
@@ -854,7 +857,7 @@ class FileToolsTest(EnhancedTestCase):
         check_mkdir(giddir, set_gid=True)
         self.assertTrue(os.stat(giddir).st_mode & stat.S_ISGID, "gid bit set %s" % giddir)
         self.assertFalse(os.stat(giddir).st_mode & stat.S_ISVTX, "no sticky bit %s" % giddir)
-        # setting stciky bit works
+        # setting sticky bit works
         stickydir = os.path.join(barfoodir, 'sticky')
         check_mkdir(stickydir, sticky=True)
         self.assertFalse(os.stat(stickydir).st_mode & stat.S_ISGID, "no gid bit %s" % stickydir)
@@ -871,6 +874,11 @@ class FileToolsTest(EnhancedTestCase):
         # existing parent dirs are untouched, no sticky/group ID bits set
         self.assertFalse(os.stat(foodir).st_mode & (stat.S_ISGID | stat.S_ISVTX), "no gid/sticky bit %s" % foodir)
         self.assertFalse(os.stat(barfoodir).st_mode & (stat.S_ISGID | stat.S_ISVTX), "no gid/sticky bit %s" % barfoodir)
+        # Relative path works
+        ft.change_dir(foodir)
+        check_mkdir(os.path.join('relative', 'subdir'), expected_path=os.path.join(foodir, 'relative'), parents=True)
+        # pathlib paths works
+        check_mkdir(Path(self.test_prefix) / 'pathlibdir')
 
     def test_path_matches(self):
         """Test path_matches function."""
