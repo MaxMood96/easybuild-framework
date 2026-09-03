@@ -2444,6 +2444,14 @@ class FileToolsTest(EnhancedTestCase):
         ft.copy(toy_file, os.path.join(self.test_prefix, 'foo'))
         self.assertTrue(os.path.isfile(os.path.join(self.test_prefix, 'foo', 'toy-0.0.eb')))
 
+        # Test using Path instance
+        toy_patch_path = Path(toy_patch)
+        ft.copy(toy_patch_path, os.path.join(self.test_prefix, 'foo'))
+        self.assertTrue(os.path.isfile(os.path.join(self.test_prefix, 'foo', toy_patch_path.name)))
+        # And as list
+        ft.copy([toy_patch_path], os.path.join(self.test_prefix, 'foo2'))
+        self.assertTrue(os.path.isfile(os.path.join(self.test_prefix, 'foo2', toy_patch_path.name)))
+
         # also test behaviour of copy under --dry-run
         build_options = {
             'extended_dry_run': True,
