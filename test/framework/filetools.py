@@ -627,8 +627,8 @@ class FileToolsTest(EnhancedTestCase):
         # make sure specified timeout is parsed correctly (as a float, not a string)
         opts = init_config(args=['--download-timeout=5.3'])
         init_config(build_options={'download_timeout': opts.download_timeout})
-        target_location = os.path.join(self.test_prefix, 'jenkins_robots.txt')
-        url = 'https://raw.githubusercontent.com/easybuilders/easybuild-framework/master/README.rst'
+        url = 'https://sources.easybuild.io/icons/blank.gif'
+        target_location = os.path.join(self.test_prefix, os.path.basename(url))
         try:
             request.urlopen(url)
             with self.mocked_stdout_stderr():
