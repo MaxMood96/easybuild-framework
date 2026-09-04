@@ -2,6 +2,9 @@ name: End-to-end test of EasyBuild with bwrap
 
 on: [push, pull_request]
 
+env:
+  EASYBUILD_DOWNLOAD_TIMEOUT: 100
+
 jobs:
   end2end:
     name: End-to-end test (runner VM)
